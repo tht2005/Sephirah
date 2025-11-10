@@ -62,30 +62,11 @@ struct CaseInsensitiveCmp {
 			});
 	}
 };
-
 typedef std::map<std::string, Option, CaseInsensitiveCmp> option_map_t;
 
-inline Option& operator<< (Option& l, const Option& r) {
-	l.name = r.name;
-	l.type = r.type;
-	l.defaultvalue = r.defaultvalue;
-	l.value = r.value;
-	l.min = r.min;
-	l.max = r.max;
-	return l;
-}
+Option& operator<< (Option& l, const Option& r);
+std::ostream& operator<< (std::ostream& os, Option op);
 
-inline std::ostream& operator<< (std::ostream& os, Option op) {
-	os << "option name " << op.name << " type " << op.type;
-	if (op.type == "spin") {
-		std::cout << " default " << std::get<int> (op.defaultvalue)
-			<< " min " << op.min << " max " << op.max;
-	} else if (op.type == "button") {
-		// not print anything
-	} else {
-		std::cout << " default " << std::get<std::string> (op.defaultvalue);
-	}
-	return os;
-}
+extern option_map_t OptionMap;
 
 #endif

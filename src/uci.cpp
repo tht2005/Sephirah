@@ -3,15 +3,12 @@
 #include "sephirah.h"
 #include <algorithm>
 #include <cctype>
-#include <cstdlib>
 #include <functional>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <variant>
 #include <vector>
-
-option_map_t OptionMap;
 
 namespace UCI {
 

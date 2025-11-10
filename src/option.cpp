@@ -1,5 +1,7 @@
 #include "option.h"
 
+option_map_t OptionMap;
+
 Option::Option(std::string name_, std::string type_, std::string defaultstr_, opt_func_t on_change_func) :
 	name(name_), type(type_), defaultvalue(defaultstr_), value(defaultstr_),
 	on_change(on_change_func)
@@ -12,3 +14,27 @@ Option::Option(std::string name_, int defaultint_, int min_, int max_, opt_func_
 
 Option::Option(std::string name_, opt_func_t on_change_func) : name(name_),
 	type("button"), on_change(on_change_func) {}
+
+Option& operator<< (Option& l, const Option& r) {
+	l.name = r.name;
+	l.type = r.type;
+	l.defaultvalue = r.defaultvalue;
+	l.value = r.value;
+	l.min = r.min;
+	l.max = r.max;
+	return l;
+}
+
+std::ostream& operator<< (std::ostream& os, Option op) {
+	os << "option name " << op.name << " type " << op.type;
+	if (op.type == "spin") {
+		std::cout << " default " << std::get<int> (op.defaultvalue)
+			<< " min " << op.min << " max " << op.max;
+	} else if (op.type == "button") {
+		// not print anything
+	} else {
+		std::cout << " default " << std::get<std::string> (op.defaultvalue);
+	}
+	return os;
+}
+
