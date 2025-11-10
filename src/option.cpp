@@ -1,6 +1,16 @@
 #include "option.h"
+#include "transposition.h"
 
-option_map_t OptionMap;
+option_map_t Options;
+
+void Option::init() {
+	Options["Debug Log File"] << Option("Debug Log File", "string", "<empty>");
+	Options["Threads"] << Option("Threads", 1, 1, 1024);
+	Options["Hash"] << Option("Hash", 16, 1, 33554432, TranspositionTable::on_hash_change);
+	Options["Clear Hash"] << Option("Clear Hash");
+	Options["Ponder"] << Option("Ponder", "check", "false");
+	Options["EvalType"] << Option("EvalType", "string", "<empty>");
+}
 
 Option::Option(std::string name_, std::string type_, std::string defaultstr_, opt_func_t on_change_func) :
 	name(name_), type(type_), defaultvalue(defaultstr_), value(defaultstr_),

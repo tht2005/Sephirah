@@ -85,6 +85,30 @@ enum MoveType : int {
 	CASTLING  = 3 << 14
 };
 
+enum Score : int {
+	SCORE_ZERO = 0,
+};
+
+enum BoundType : int {
+	BOUND_NONE,
+	BOUND_EXACT,
+	BOUND_LOWER,
+	BOUND_UPPER,
+};
+
+constexpr uint8_t make_genbound(int generation, bool pv, BoundType b) {
+	return generation | (pv << 5) | (b << 6);
+} 
+constexpr uint8_t get_generation(uint8_t genbound) {
+	return genbound & 0b11111;
+}
+constexpr bool get_pv(uint8_t genbound) {
+	return (genbound >> 5) & 1;
+}
+constexpr BoundType get_bound_type(uint8_t genbound) {
+	return BoundType((genbound >> 6) & 0b11);
+}
+
 constexpr Square make_square(File f, Rank r) {
 	return Square((r << 3) + f);
 }

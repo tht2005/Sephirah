@@ -12,17 +12,8 @@
 
 namespace UCI {
 
-void init_option() {
-	OptionMap["Debug Log File"] << Option("Debug Log File", "string", "<empty>");
-	OptionMap["Threads"] << Option("Threads", 1, 1, 1024);
-	OptionMap["Hash"] << Option("Hash", 16, 1, 33554432);
-	OptionMap["Clear Hash"] << Option("Clear Hash");
-	OptionMap["Ponder"] << Option("Ponder", "check", "false");
-	OptionMap["EvalType"] << Option("EvalType", "string", "<empty>");
-}
-
 int main(int argc, char **argv) {
-	init_option();
+	Option::init();
 	std::cout << SEPHIRAH_NAME " " SEPHIRAH_VERSION " by " SEPHIRAH_AUTHOR << std::endl;
 	while (1) {
 		std::string cmd;
@@ -37,7 +28,7 @@ int main(int argc, char **argv) {
 			std::cout << "id name " SEPHIRAH_NAME " " SEPHIRAH_VERSION << std::endl;
 			std::cout << "id author " SEPHIRAH_AUTHOR << std::endl;
 			std::cout << std::endl;
-			for (const auto& [_, op] : OptionMap) {
+			for (const auto& [_, op] : Options) {
 				std::cout << op << std::endl;
 			}
 			std::cout << "uciok" << std::endl;
@@ -52,11 +43,11 @@ int main(int argc, char **argv) {
 			std::string name = tokens[2];
 			while (i < (int)tokens.size() && tokens[i] != "value")
 				name = name + " " + tokens[i++];
-			if (OptionMap.count(name) == 0) {
+			if (Options.count(name) == 0) {
 				std::cout << "Invalid option '" << name << "'" << std::endl;
 				continue;
 			}
-			Option& op = OptionMap[name];
+			Option& op = Options[name];
 			if (op.type != "button") {
 				if (i + 1 >= (int)tokens.size()) {
 					std::cout << "Need to specify value" << std::endl;

@@ -1,6 +1,7 @@
 #ifndef OPTION_H_INCLUDED
 #define OPTION_H_INCLUDED
 
+#include <cassert>
 #include <functional>
 #include <iostream>
 #include <map>
@@ -18,6 +19,12 @@ typedef std::function<void(const Option&)> opt_func_t;
  *
  */
 struct Option {
+	/**
+	 * @brief Static init function of Option module. I want to use namespace
+	 * instead but the name Option is used for struct.
+	 */
+	static void init();
+
 	/**
 	 * @brief 
 	 *
@@ -67,6 +74,11 @@ typedef std::map<std::string, Option, CaseInsensitiveCmp> option_map_t;
 Option& operator<< (Option& l, const Option& r);
 std::ostream& operator<< (std::ostream& os, Option op);
 
-extern option_map_t OptionMap;
+extern option_map_t Options;
+
+inline int get_option_hash() {
+	assert(Options.count("hash"));
+	return std::get<int> (Options["hash"].value);
+}
 
 #endif
