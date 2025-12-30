@@ -3,10 +3,12 @@
 #include "random.h"
 #include "types.h"
 #include <cassert>
-#include <cctype>
+#include <cstdlib>
 #include <cstring>
+#include <iostream>
 #include <sstream>
 #include <string>
+#include <unistd.h>
 
 constexpr Piece Pieces[] = {	W_PAWN, W_ROOK, W_KNIGHT, W_BISHOP, W_QUEEN, W_KING,
 				B_PAWN, B_ROOK, B_KNIGHT, B_BISHOP, B_QUEEN, B_KING};
@@ -15,7 +17,8 @@ namespace Zobrist {
 	Key psq[PIECE_NB][SQ_NB];
 	Key enpassant[FILE_NB];
 	Key castlingRights[CASTLING_RIGHT_NB];
-	Key side, noPawn;
+	Key side;
+	// Key noPawn;
 }
 
 void Position::init() {
@@ -27,222 +30,442 @@ void Position::init() {
 	for (int i = 0; i < CASTLING_RIGHT_NB; ++i)
 		Zobrist::castlingRights[i] = random_u64();
 	Zobrist::side = random_u64();
-	Zobrist::noPawn = random_u64();
+	// Zobrist::noPawn = random_u64();
 }
 
-Piece get_piece(char c) {
-	switch (c) {
-		case 'p': return B_PAWN;
-		case 'r': return B_ROOK;
-		case 'n': return B_KNIGHT;
-		case 'b': return B_BISHOP;
-		case 'q': return B_QUEEN;
-		case 'k': return B_KING;
-		case 'P': return W_PAWN;
-		case 'R': return W_ROOK;
-		case 'N': return W_KNIGHT;
-		case 'B': return W_BISHOP;
-		case 'Q': return W_QUEEN;
-		case 'K': return W_KING;
-	}
-	assert(0);
-}
+void Position::set(std::string fenStr, StateInfo& st) {
+	std::istringstream ss(fenStr);
+	std::string piece_placement_str, castling_right_str, ep_str;
+	char active_color;
+	int halfmove_clock, full_move_number;
+	ss >> piece_placement_str >> active_color >> castling_right_str >> ep_str
+		>> halfmove_clock >> full_move_number;
 
-Square get_square(std::string str) {
-	assert(str.size() == 2);
-	str[0] = tolower(str[0]);
-	assert('a' <= str[0] && str[0] <= 'h');
-	assert('1' <= str[1] && str[1] <= '8');
-	File f = File(FILE_A + (str[0] - 'a'));
-	Rank r = Rank(RANK_1 + (str[1] - '1'));
-	return make_square(f, r);
-}
+	// Piece board[SQ_NB];
+	// Bitboard byColorBB[COLOR_NB];
+	// Bitboard byTypeBB[PIECE_TYPE_NB];
+	// Color sideToMove;
+	// int ply;
+	// StateInfo *st;
 
-void Position::set_check_info(StateInfo& st) {
-	// TODO: set_check_info
-	// Bitboard blockersForKing[COLOR_NB];
-	// Bitboard pinners[COLOR_NB];
-	// Bitboard checkSquares[PIECE_TYPE_NB];
-}
+	// struct StateInfo {
+	// 	Key key;
+	// 	int castlingRights;
+	// 	int rule50;
+	// 	Piece capturedPiece;
+	// 	Move lastmove;
+	// 	Square epSquare;
+	// 	StateInfo *prev;
+	// };
 
-void Position::set_state(StateInfo& st) {
-	st.pawnKey = Zobrist::noPawn;
-	// st.materialKey = st.key = 0;
-	st.key = 0;
-	// st.checkersBB =
-	set_check_info(st);
-	for (Bitboard b = pieces(); b; ) {
-		Square sq = pop_lsb(b); // pop a bit of b
-		Piece pc = board[sq];
-		st.key ^= Zobrist::psq[pc][sq];
-		if (get_piece_type(pc) == PAWN)
-			st.pawnKey ^= Zobrist::psq[pc][sq];
-		else
-			// TODO: noPawnMaterial
-			;
-	}
-	if (st.epSquare != SQ_NONE)
-		st.key ^= Zobrist::enpassant[get_file(st.epSquare)];
-	st.key ^= Zobrist::castlingRights[st.castlingRights];
-	if (sideToMove == BLACK) st.key ^= Zobrist::side;
-	// TODO: materialKey
-}
-
-void Position::set_castling_right(Color c, CastlingRights side) {
-	assert(side == KING_SIDE || side == QUEEN_SIDE);
-	Rank r = (c == WHITE) ? RANK_1 : RANK_8;
-	File rookFile = (side == KING_SIDE) ? FILE_H : FILE_A;
-	Square rfrom = make_square(rookFile, r);
-	Square kfrom = (c == WHITE) ? SQ_E1 : SQ_E8;
-	int cr = get_side(c) & side;
-
-	castlingRightsMask[kfrom] |= cr;
-	castlingRightsMask[rfrom] |= cr;
-	castlingRookSquare[cr] = rfrom;
-	castlingPath[cr] = path_bb(kfrom, rfrom);
-}
-
-void Position::set(std::string fenStr, StateInfo& st, Thread& th) {
+	// init position
 	assert(NO_PIECE == 0);
-	memset(board, NO_PIECE, sizeof(board));
-	memset(pieceCount, 0, sizeof(pieceCount));
-	memset(byColorBB, 0, sizeof(byColorBB));
-	memset(byTypeBB, 0, sizeof(byTypeBB));
-	st.castlingRights = 0;
-	memset(castlingRightsMask, 0, sizeof(castlingRightsMask));
-	memset(castlingPath, 0, sizeof(castlingPath));
+	memset(this->board, NO_PIECE, sizeof(this->board));
+	memset(this->byColorBB, 0, sizeof(this->byColorBB));
+	memset(this->byTypeBB, 0, sizeof(this->byTypeBB));
+	this->st = &st;
+	this->ply = 0;
 
-	std::istringstream is(fenStr);
-	std::string pcPlacement, actColor, castlingRightsStr, epStr;
-	int halfmove, fullmove;
-	is >> pcPlacement >> actColor >> castlingRightsStr >> epStr >> halfmove >> fullmove;
-	// piece placement
-	File f = FILE_A;
-	Rank r = RANK_8;
-	for (char c : pcPlacement) {
-		if (c == '/') {
-			r = Rank(r - 1);
-			f = FILE_A;
-		} else if (isdigit(c)) {
-			f = File(f + (c - '0'));
+	// init state info
+	st.key = 0;
+	st.castlingRights = 0;
+	st.rule50 = halfmove_clock;
+	st.capturedPiece = NO_PIECE;
+	st.lastmove = MOVE_NONE;
+	// st.epSquare = (ep_str == "-") ? SQ_NONE : str_to_square(ep_str);
+	st.prev = nullptr;
+
+	Square current_sq = SQ_A8;
+	for (char c : piece_placement_str) {
+		if ('0' <= c && c <= '9') {
+			current_sq += int(c - '0');
+		} else if (c == '/') {
+			current_sq -= 16;
 		} else {
-			Piece pc = get_piece(c);
-			Square sq = make_square(f, r);
-			put_piece(pc, sq);
+			Piece p = char_to_piece(c);
+			this->board[current_sq] = p;
+			act_bit(this->byColorBB[get_color(p)], current_sq);
+			act_bit(this->byTypeBB[get_piece_type(p)], current_sq);
+			st.key ^= Zobrist::psq[p][current_sq];
+			++current_sq;
 		}
 	}
-	// side to move
-	if (actColor == "w") sideToMove = WHITE;
-	else {
-		sideToMove = BLACK;
+	assert(current_sq == SQ_A1 + 8);
+
+	this->sideToMove = (active_color == 'b') ? BLACK : WHITE;
+	if (this->sideToMove == BLACK) {
+		st.key ^= Zobrist::side;
 	}
-	// castling rights
-	for (char ch : castlingRightsStr) {
-		Color c = islower(ch) ? BLACK : WHITE;
-		CastlingRights side = (tolower(ch) == 'q') ? QUEEN_SIDE : KING_SIDE;
-		st.castlingRights |= get_side(c) & side;
-		set_castling_right(c, side);
+
+	for (char c : castling_right_str) {
+		st.castlingRights |= char_to_castling_rights(c);
 	}
-	// enpassant
-	if (epStr == "-") st.epSquare = SQ_NONE;
-	else  {
-		st.epSquare = get_square(epStr);
+	st.key ^= Zobrist::castlingRights[st.castlingRights];
+
+	if (ep_str == "-") {
+		st.epSquare = SQ_NONE;
+	} else {
+		st.epSquare = str_to_square(ep_str);
+		st.key ^= Zobrist::enpassant[get_file(st.epSquare)];
 	}
-	st.rule50 = halfmove;
-	ply = std::max(2 * (fullmove - 1), 0) + (sideToMove == BLACK);
-	this->set_state(st);
-	this->st = &st;
-	this->th = &th;
 }
 
 void Position::put_piece(Piece pc, Square sq) {
-	board[sq] = pc;
-	index[sq] = pieceCount[pc];
-	pieceList[pc][pieceCount[pc]++] = sq;
-	byColorBB[get_color(pc)] |= 1ULL << sq;
-	byTypeBB[ALL_PIECE] |= 1ULL << sq;
-	byTypeBB[get_piece_type(pc)] |= 1ULL << sq;
+	if (pc == NO_PIECE) return;
+	this->board[sq] = pc;
+	act_bit(this->byColorBB[get_color(pc)], sq);
+	act_bit(this->byTypeBB[get_piece_type(pc)], sq);
 }
 
 void Position::remove_piece(Square sq) {
-	Piece pc = board[sq];
+	Piece pc = this->board[sq];
 	if (pc == NO_PIECE) return;
-	board[sq] = NO_PIECE;
-	int i = index[sq], last = --pieceCount[pc];
-	if (i != last) {
-		pieceList[pc][i] = pieceList[pc][last];
-		index[pieceList[pc][last]] = i;
-	}
-	byColorBB[get_color(pc)] &= ~(1ULL << sq);
-	byTypeBB[ALL_PIECE] &= ~(1ULL << sq);
-	byTypeBB[get_piece_type(pc)] &= ~(1ULL << sq);
+	this->board[sq] = NO_PIECE;
+	dec_bit(this->byColorBB[get_color(pc)], sq);
+	dec_bit(this->byTypeBB[get_piece_type(pc)], sq);
 }
 
-/**
- * @brief Trust the caller: fr != to
- *
- * @param fr From square
- * @param to To square
- */
 void Position::move_piece(Square fr, Square to) {
-	if (board[to] != NO_PIECE) remove_piece(to);
-	put_piece(board[fr], to);
-	remove_piece(fr);
+	assert (fr != to);
+	Piece pc = this->board[fr];
+	this->remove_piece(fr);
+	this->remove_piece(to);
+	this->put_piece(pc, to);
 }
 
-Bitboard Position::pieces() const {
-	return byTypeBB[ALL_PIECE];
-}
-Bitboard Position::pieces(PieceType pt) const {
-	return byTypeBB[pt];
-}
-Bitboard Position::pieces(PieceType pt1, PieceType pt2) const {
-	return byTypeBB[pt1] | byTypeBB[pt2];
-}
-Bitboard Position::pieces(Color c) const {
-	return byColorBB[c];
-}
-Bitboard Position::pieces(Color c, PieceType pt) const {
-	return byColorBB[c] & byTypeBB[pt];
-}
-Bitboard Position::pieces(Color c, PieceType pt1, PieceType pt2) const {
-	return byColorBB[c] & (byTypeBB[pt1] | byTypeBB[pt2]);
-}
-Piece Position::piece_on(Square s) const {
-	return board[s];
-}
-Square Position::ep_square() const {
-	return st->epSquare;
-}
-bool Position::empty(Square s) const {
-	return board[s] == NO_PIECE;
-}
-int Position::count(PieceType pt, Color c) const {
-	return pieceCount[make_piece(c, pt)];
-}
-int Position::count(PieceType pt) const {
-	return count(pt, WHITE) + count(pt, BLACK);
-}
-const Square* Position::squares(PieceType pt, Color c) const {
-	return pieceList[make_piece(c, pt)];
-}
-Square Position::square(PieceType pt, Color c) const {
-	assert(pieceCount[make_piece(c, pt)] == 1);
-	return pieceList[make_piece(c, pt)][0];
+void Position::do_move(Move m, StateInfo& newSt) {
+	// Piece board[SQ_NB];
+	// Bitboard byColorBB[COLOR_NB];
+	// Bitboard byTypeBB[PIECE_TYPE_NB];
+	// Color sideToMove;
+	// int ply;
+	// StateInfo *st;
+
+	// 	Key key;
+	// 	int castlingRights;
+	// 	int rule50;
+	// 	Piece capturedPiece;
+	// 	Move lastmove;
+	// 	Square epSquare;
+	// 	StateInfo *prev;
+
+	newSt.key = this->st->key;
+	newSt.castlingRights = this->st->castlingRights;
+	newSt.rule50 = this->st->rule50;
+	newSt.capturedPiece = NO_PIECE;
+	newSt.lastmove = m;
+	newSt.epSquare = SQ_NONE;
+	newSt.prev = this->st;
+
+	Square fr_square = from_sq(m);
+	Square to_square = to_sq(m);
+	Piece fr_piece = this->board[fr_square];
+	Piece to_piece = this->board[to_square];
+	PieceType fr_piece_type = get_piece_type(fr_piece);
+
+	// undo key
+	if (fr_piece != NO_PIECE) {
+		newSt.key ^= Zobrist::psq[fr_piece][fr_square];
+	}
+	if (to_piece != NO_PIECE) {
+		newSt.key ^= Zobrist::psq[to_piece][to_square];
+		newSt.capturedPiece = to_piece;
+	}
+	if (this->st->epSquare != SQ_NONE) {
+		newSt.key ^= Zobrist::enpassant[get_file(this->st->epSquare)];
+	}
+	newSt.key ^= Zobrist::castlingRights[this->st->castlingRights];
+
+	// the final key update only handle from and to square hash, additional
+	// changes handled for each type
+	MoveType moveType = type_of(m);
+	switch (moveType) {
+		case PROMOTION: {
+			Piece pro_piece = make_piece(this->sideToMove, promotion_type(m));
+			this->remove_piece(fr_square);
+			this->remove_piece(to_square);
+			this->put_piece(pro_piece, to_square);
+		}	break;
+		case ENPASSANT: {
+			this->move_piece(fr_square, to_square);
+			Square eaten_pawn_sq = fr_square + Direction(get_file(to_square) - get_file(fr_square));
+			Piece eaten_pawn_pc = this->board[eaten_pawn_sq];
+			newSt.key ^= Zobrist::psq[eaten_pawn_pc][eaten_pawn_sq];
+			this->remove_piece(eaten_pawn_sq);
+
+			newSt.capturedPiece = eaten_pawn_pc;
+			newSt.key ^= Zobrist::enpassant[get_file(eaten_pawn_sq)];
+		}	break;
+		case CASTLING: {
+			Square rook_from, rook_to;
+			Rank rook_rank = get_initial_king_rank(this->sideToMove);
+			if (get_file(to_square) == FILE_B) { // queen side
+				rook_from = make_square(FILE_A, rook_rank);
+				rook_to = make_square(FILE_C, rook_rank);
+			} else {
+				rook_from = make_square(FILE_H, rook_rank);
+				rook_to = make_square(FILE_F, rook_rank);
+			}
+			Piece rook_pc = make_piece(this->sideToMove, ROOK);
+			newSt.key ^= Zobrist::psq[rook_pc][rook_from];
+			this->move_piece(rook_from, rook_to);
+			newSt.key ^= Zobrist::psq[rook_pc][rook_to];
+
+			// lost all castling rights
+			dec_bit(newSt.castlingRights, get_side(this->sideToMove));
+		}	break;
+		case NORMAL:
+			this->move_piece(fr_square, to_square);
+			// check if this move is the pawn move up two step and set newSt.epSquare
+			if (fr_piece_type == PAWN
+			&& abs(get_rank(fr_square) - get_rank(to_square)) == 2) {
+				newSt.epSquare = to_square - push_pawn(this->sideToMove);
+			}
+			// check if king or rook move
+			if (fr_piece_type == KING) {
+				dec_bit(newSt.castlingRights, get_side(this->sideToMove));
+			} else if (fr_piece_type == ROOK) {
+				dec_bit(newSt.castlingRights, get_side(this->sideToMove) & get_rook_side(fr_square));
+			}
+			break;
+	}
+
+	if (fr_piece_type == PAWN || newSt.capturedPiece != NO_PIECE) {
+		newSt.rule50 = 0;
+	} else {
+		++newSt.rule50;
+	}
+
+	// update new key
+	if (to_piece != NO_PIECE) {
+		newSt.key ^= Zobrist::psq[to_piece][to_square];
+	}
+	if (newSt.epSquare != SQ_NONE) {
+		newSt.key ^= Zobrist::enpassant[get_file(newSt.epSquare)];
+	}
+	newSt.key ^= Zobrist::castlingRights[newSt.castlingRights];
+
+	// flip side
+	this->sideToMove = flip_color(this->sideToMove);
+	newSt.key ^= Zobrist::side;
+
+	this->st = &newSt;
+	++this->ply;
 }
 
-int Position::castling_rights(Color c) const {
-	return get_side(c) & st->castlingRights;
+void Position::undo_move() {
+	Piece capturedPiece = this->st->capturedPiece;
+	int cr = this->st->castlingRights;
+	Square epSquare = this->st->epSquare;
+	Move lastmove = this->st->lastmove;
+	MoveType movetype = type_of(lastmove);
+
+	Color movingSide = flip_color(this->sideToMove);
+
+	Square fr_square = from_sq(lastmove);
+	Square to_square = to_sq(lastmove);
+	Piece fr_piece = movetype == PROMOTION ? make_piece(movingSide, PAWN) : this->board[to_square];
+	Piece to_piece = movetype == ENPASSANT ? NO_PIECE : capturedPiece;
+	// PieceType fr_piece_type = get_piece_type(fr_piece);
+
+	this->remove_piece(fr_square);
+	this->remove_piece(to_square);
+	this->put_piece(fr_piece, fr_square);
+	this->put_piece(to_piece, to_square);
+
+	if (movetype == CASTLING) {
+		Square rook_from, rook_to;
+		Rank rook_rank = get_initial_king_rank(movingSide);
+		if (get_file(to_square) == FILE_B) { // queen side
+			rook_from = make_square(FILE_A, rook_rank);
+			rook_to = make_square(FILE_C, rook_rank);
+		} else {
+			rook_from = make_square(FILE_H, rook_rank);
+			rook_to = make_square(FILE_F, rook_rank);
+		}
+		this->move_piece(rook_to, rook_from);
+	} else if (movetype == ENPASSANT) {
+		Square eaten_pawn_sq = fr_square + Direction(get_file(to_square) - get_file(fr_square));
+		Piece eaten_pawn_pc = make_piece(flip_color(movingSide), PAWN);
+		this->put_piece(eaten_pawn_pc, eaten_pawn_sq);
+	}
+
+	this->sideToMove = movingSide;
+	this->st = this->st->prev;
+	--this->ply;
 }
-bool Position::can_castle(CastlingRights cr) const {
-	return cr & st->castlingRights;
+
+void Position::generate_moves(std::vector<Move>& moves) const {
+	for (Square s = SQ_A1; s < SQ_NB; ++s) {
+		Piece pc = this->board[s];
+		if (pc == NO_PIECE || this->sideToMove != get_color(pc)) continue;
+
+		PieceType pt = get_piece_type(pc);
+		switch (pt) {
+			case PAWN: {
+				Square one_forward = s + push_pawn(this->sideToMove);
+				Square two_forward = s + 2 * push_pawn(this->sideToMove);
+
+				// push one
+				if (valid_square(one_forward) && this->board[one_forward] == NO_PIECE) {
+					if (get_rank(s) == get_initial_pawn_rank(flip_color(this->sideToMove))) {
+						Move pro_m= make_move(s, s + push_pawn(this->sideToMove));
+						pro_m |= PROMOTION;
+						for (PieceType pro_pt = KNIGHT; pro_pt <= QUEEN; ++pro_pt) {
+							moves.push_back(act_promotion_type(pro_m, pro_pt));
+						}
+					} else {
+						moves.push_back(make_move(s, s + push_pawn(this->sideToMove)));
+					}
+					if (valid_square(two_forward) && this->board[two_forward] == NO_PIECE
+					&& get_rank(s) == get_initial_pawn_rank(this->sideToMove)) {
+						moves.push_back(make_move(s, s + 2 * push_pawn(this->sideToMove)));
+					}
+				}
+				// enpassant
+				if (this->st->epSquare != SQ_NONE) {
+					Square epSquare = this->st->epSquare;
+					if (get_rank(s) + push_pawn(this->sideToMove) == get_rank(epSquare)
+					&& abs(get_file(s) - get_file(epSquare)) == 1) {
+						Move m = make_move(s, epSquare);
+						m |= ENPASSANT;
+						moves.push_back(m);
+					}
+				}
+			}	break;
+
+			// simple move type
+			case KING:
+			case KNIGHT: {
+				int num_dir;
+				const Direction *dirs;
+				if (pt == KNIGHT) {
+					static const Direction knight_dirs[] = {
+						EAST * 1 + NORTH * 2,
+						EAST * 2 + NORTH * 1,
+						EAST * 2 + NORTH * -1,
+						EAST * 1 + NORTH * -2,
+						EAST * -1 + NORTH * -2,
+						EAST * -2 + NORTH * -1,
+						EAST * -2 + NORTH * 2,
+						EAST * -1 + NORTH * 1,
+					};
+					num_dir = 8;
+					dirs = knight_dirs;
+				} else if (pt == KING) {
+					static const Direction king_dirs[] = { NORTH, SOUTH, WEST, EAST, NORTH_EAST, NORTH_WEST, SOUTH_EAST, SOUTH_WEST };
+					num_dir = 8;
+					dirs = king_dirs;
+				}
+
+				for (int i = 0; i < num_dir; ++i) {
+					Square to_square = s + dirs[i];
+					if (valid_square(to_square) && this->board[to_square] == NO_PIECE) {
+						moves.push_back(make_move(s, to_square));
+					}
+				}
+			}	break;
+
+			// ray type
+			case BISHOP:
+			case ROOK:
+			case QUEEN: {
+				int num_rays;
+				const Direction *rays;
+
+				if (pt == BISHOP) {
+					static const Direction bs_rays[] = { NORTH_EAST, NORTH_WEST, SOUTH_EAST, SOUTH_WEST };
+					num_rays = 4;
+					rays = bs_rays;
+				} else if (pt == ROOK) {
+					static const Direction rk_rays[] = { NORTH, SOUTH, WEST, EAST };
+					num_rays = 4;
+					rays = rk_rays;
+				} else if (pt == QUEEN) {
+					static const Direction qu_rays[] = { NORTH, SOUTH, WEST, EAST, NORTH_EAST, NORTH_WEST, SOUTH_EAST, SOUTH_WEST };
+					num_rays = 8;
+					rays = qu_rays;
+				}
+
+				for (int i = 0; i < num_rays; ++i) {
+					const Direction ray = rays[i];
+					Square to_square = s + ray;
+					while (true) {
+						if (!valid_square(to_square)) break;
+						Piece pc = this->board[to_square];
+						if (pc == NO_PIECE) {
+							moves.push_back(make_move(s, to_square));
+						} else {
+							Color c = get_color(pc);
+							if (this->sideToMove != c) {
+								moves.push_back(make_move(s, to_square));
+							}
+							break;
+						}
+						to_square += ray;
+					}
+				}
+
+			}	break;
+
+			default: assert(0);
+		}
+	}
 }
-bool Position::castling_impeded(CastlingRights cr) const {
-	assert(cr == WHITE_OO || cr == WHITE_OOO || cr == BLACK_OO || cr == BLACK_OOO);
-	return byTypeBB[ALL_PIECE] & castlingPath[cr];
-}
-Square Position::castling_rook_square(CastlingRights cr) const {
-	assert(cr == WHITE_OO || cr == WHITE_OOO || cr == BLACK_OO || cr == BLACK_OOO);
-	return castlingRookSquare[cr];
+
+const std::string Position::fen() const {
+	// std::istringstream ss(fenStr);
+	// std::string piece_placement_str, castling_right_str, ep_str;
+	// char active_color;
+	// int halfmove_clock, full_move_number;
+	// ss >> piece_placement_str >> active_color >> castling_right_str >> ep_str
+	// 	>> halfmove_clock >> full_move_number;
+
+	std::ostringstream ss;
+
+	for (Rank r = RANK_8; r >= RANK_1; --r) {
+		int cons_empty = 0;
+		for (File f = FILE_A; f <= FILE_H; ++f) {
+			Square sq = make_square(f, r);
+			if (this->board[sq] == NO_PIECE) {
+				++cons_empty;
+			} else {
+				if (cons_empty > 0) {
+					ss << char(cons_empty + '0');
+					cons_empty = 0;
+				}
+				ss << piece_to_char(this->board[sq]);
+			}
+		}
+		if (cons_empty > 0) {
+			ss << char(cons_empty + '0');
+			cons_empty = 0;
+		}
+		if (r != RANK_1) ss << '/';
+	}
+
+	ss << ' ' << (this->side_to_move() == BLACK ? 'b' : 'w');
+
+	ss << ' ';
+	if (this->castling_rights() == 0) {
+		ss << '-';
+	} else {
+		if (this->castling_rights(WHITE) & KING_SIDE) ss << 'K';
+		if (this->castling_rights(WHITE) & QUEEN_SIDE) ss << 'Q';
+		if (this->castling_rights(BLACK) & KING_SIDE) ss << 'k';
+		if (this->castling_rights(BLACK) & QUEEN_SIDE) ss << 'q';
+	}
+
+	ss << ' ';
+	if (this->ep_square() == SQ_NONE) {
+		ss << '-';
+	} else {
+		ss << square_to_str(this->ep_square());
+	}
+
+	// TODO: half move clock and full move number
+	ss << " 0 1";
+	
+	return ss.str();
 }
 

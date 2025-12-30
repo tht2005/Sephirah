@@ -4,6 +4,9 @@
 #include "types.h"
 #include <cassert>
 
+#define act_bit(b, i) do { (b) |= 1ULL << (i); } while(0)
+#define dec_bit(b, i) do { (b) &= ~(1ULL << (i)); } while (0)
+
 constexpr Square lsb(Bitboard b) {
 	return Square(__builtin_ctzll(b));
 }
