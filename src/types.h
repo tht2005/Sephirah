@@ -20,15 +20,15 @@ enum Color : int {
 
 enum PieceType : int {
 	NO_PIECE_TYPE = 0,
-	PAWN, KNIGHT, ROOK, BISHOP, QUEEN, KING,
+	PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING,
 	ALL_PIECE = 7,
 	PIECE_TYPE_NB =8,
 };
 
 enum Piece : int {
 	NO_PIECE = 0,
-	W_PAWN = (WHITE << 3) + PAWN, W_KNIGHT, W_ROOK, W_BISHOP, W_QUEEN, W_KING,
-	B_PAWN = (BLACK << 3) + PAWN, B_KNIGHT, B_ROOK, B_BISHOP, B_QUEEN, B_KING,
+	W_PAWN = (WHITE << 3) + PAWN, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
+	B_PAWN = (BLACK << 3) + PAWN, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING,
 	PIECE_NB = 16,
 };
 
@@ -66,6 +66,12 @@ enum CastlingRights : int {
 	KING_SIDE = WHITE_OO | BLACK_OO,
 	QUEEN_SIDE = WHITE_OOO | BLACK_OOO,
 	CASTLING_RIGHT_NB = 16,
+};
+
+enum Phase {
+	PHASE_ENDGAME,
+	PHASE_MIDGAME = 128,
+	MG = 0, EG = 1, PHASE_NB = 2
 };
 
 /// A move needs 16 bits to be stored
@@ -157,6 +163,9 @@ constexpr int operator/(T d1, T d2) { return int(d1) / int(d2); }  \
 inline T& operator*=(T& d, int i) { return d = T(int(d) * i); }    \
 inline T& operator/=(T& d, int i) { return d = T(int(d) / i); }
 
+ENABLE_FULL_OPERATORS_ON(Value);
+ENABLE_FULL_OPERATORS_ON(Score);
+
 ENABLE_FULL_OPERATORS_ON(Square);
 ENABLE_INCR_OPERATORS_ON(Square);
 
@@ -168,6 +177,8 @@ ENABLE_INCR_OPERATORS_ON(File);
 ENABLE_INCR_OPERATORS_ON(Rank);
 
 ENABLE_FULL_OPERATORS_ON(Direction);
+
+ENABLE_INCR_OPERATORS_ON(Piece);
 
 inline Move& operator|= (Move& m, MoveType t) {
 	m = Move( int(m) | int(t) );
@@ -203,6 +214,9 @@ constexpr uint8_t distance(T a, T b) {
 
 constexpr Direction push_pawn(Color c) {
 	return (c == WHITE) ? NORTH : SOUTH;
+}
+constexpr int push_pawn_rank(Color c) {
+	return (c == WHITE) ? 1 : -1;
 }
 
 constexpr Score make_score(int mg, int eg) {
@@ -243,6 +257,17 @@ constexpr Rank get_rank(Square sq) {
 }
 constexpr File get_file(Square sq) {
 	return File(sq & 7);
+}
+
+constexpr Square advance(Square sq, int df, int dr) {
+	File f = get_file(sq);
+	Rank r = get_rank(sq);
+	f = File(f + df);
+	r = Rank(r + dr);
+	return (FILE_A <= f && f <= FILE_H
+			&& RANK_1 <= r && r <= RANK_8)
+		? make_square(f, r)
+		: SQ_NB; // invalid
 }
 
 constexpr Piece make_piece(Color c, PieceType pt) {
@@ -324,7 +349,7 @@ inline Square str_to_square(std::string str) {
 inline std::string square_to_str(Square sq) {
 	File f = get_file(sq);
 	Rank r = get_rank(sq);
-	char cf = 'A' + f;
+	char cf = 'a' + f;
 	char cr = '1' + r;
 	return std::string({cf, cr});
 }
@@ -363,6 +388,10 @@ constexpr Piece char_to_piece (char c) {
 	assert(0);
 }
 
+inline File map_to_queenside(File f) {
+	return std::min(f, File(FILE_H - f)); // Map files ABCDEFGH to files ABCDDCBA
+}
+
 constexpr char piece_to_char (Piece pc) {
 	Color cl = get_color(pc);
 	PieceType pt = get_piece_type(pc);
@@ -378,6 +407,32 @@ constexpr char piece_to_char (Piece pc) {
 	}
 	if (cl == WHITE) c = toupper(c);
 	return c;
+}
+
+constexpr Color operator~(Color c) {
+  return Color(c ^ BLACK); // Toggle color
+}
+
+constexpr Square operator~(Square s) {
+  return Square(s ^ SQ_A8); // Vertical flip SQ_A1 -> SQ_A8
+}
+
+constexpr Piece operator~(Piece pc) {
+  return Piece(pc ^ 8); // Swap color of piece B_KNIGHT -> W_KNIGHT
+}
+
+inline std::string move_to_str(Move m) {
+	std::string res = square_to_str(from_sq(m)) + square_to_str(to_sq(m));
+	if (type_of(m) == PROMOTION) {
+		switch (promotion_type(m)) {
+			case KNIGHT: res += 'n'; break;
+			case BISHOP: res += 'b'; break;
+			case ROOK: res += 'r'; break;
+			case QUEEN: res += 'q'; break;
+			default: assert(0);
+		}
+	}
+	return res;
 }
 
 #endif

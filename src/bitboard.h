@@ -6,6 +6,7 @@
 
 #define act_bit(b, i) do { (b) |= 1ULL << (i); } while(0)
 #define dec_bit(b, i) do { (b) &= ~(1ULL << (i)); } while (0)
+#define hav_bit(b, i) ((b) & (1ULL << (i)))
 
 constexpr Square lsb(Bitboard b) {
 	return Square(__builtin_ctzll(b));
@@ -15,6 +16,10 @@ inline Square pop_lsb(Bitboard& b) {
 	Square s = lsb(b);
 	b &= b - 1;
 	return s;
+}
+
+constexpr Bitboard square_bb(Square sq) {
+	return 1ULL << sq;
 }
 
 constexpr Bitboard path_bb(Square from, Square to) {

@@ -9,7 +9,7 @@ TranspositionTable ttable;
 
 TTEntry::TTEntry() : key(0) {}
 TTEntry::TTEntry(Key k_, Move m_, Score e_, Score val_, uint8_t gen_, bool pv,
-		BoundType b_, uint8_t d_)
+		Bound b_, uint8_t d_)
 	: key(k_), move(m_), eval(e_), value(val_),
 	genbound(make_genbound(gen_, pv, b_)), depth(d_) {}
 

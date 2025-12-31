@@ -7,21 +7,17 @@
 #include <cstddef>
 #include <cstdint>
 
-/**
- * @class TTEntry
- * @brief Size of this truct must be 4 bytes
- *
- */
+// TODO lockless shared hash table or something ...
 struct TTEntry {
 	uint16_t key; // truncate key from 64 bit to 16 bit
 	uint16_t move;
-	uint8_t eval;
-	uint8_t value;
+	uint16_t eval;
+	uint16_t value;
 	uint8_t genbound; // 5 bit for generation, 1 bit for pv node, 2 bit for bound type
 	uint8_t depth;
 
 	TTEntry();
-	TTEntry(Key k_, Move m_, Score e_, Score val_, uint8_t gen_, bool pv, BoundType b_, uint8_t d_);
+	TTEntry(Key k_, Move m_, Score e_, Score val_, uint8_t gen_, bool pv, Bound b_, uint8_t d_);
 };
 
 class TranspositionTable {
