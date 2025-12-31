@@ -41,7 +41,7 @@ void position(std::istringstream& ss, Position& pos, StateListPtr& dq) {
 	dq->emplace_back();
 	pos.set(fen, dq->back());
 
-	ss >> tmp; // `moves` token
+	ss >> tmp; 
 	while (ss >> tmp) {
 		Move m = pos.string_to_move(tmp);
 		dq->emplace_back();
@@ -52,6 +52,7 @@ void position(std::istringstream& ss, Position& pos, StateListPtr& dq) {
 void go(std::istringstream& ss, Position& pos, StateListPtr& dq) {
 	uint64_t btime, wtime;
 	std::string name, value;
+	
 	while (ss >> name) {
 		if (name == "btime") {
 			ss >> btime;
@@ -62,7 +63,7 @@ void go(std::istringstream& ss, Position& pos, StateListPtr& dq) {
 		}
 	}
 
-	Move m = find_best_move(pos, dq, 4);
+	Move m = find_best_move(pos, dq, 9);
 	std::cout << "bestmove " << move_to_str(m) << std::endl;
 }
 
@@ -86,7 +87,6 @@ void setoption(std::istringstream& ss, std::string& token) {
 			}
 		} else {
 			ss >> token;
-			// convert to lowercase
 			std::transform(token.cbegin(), token.cend(), token.begin(),
 				[](unsigned char c){ return std::tolower(c); });
 			op.value = token;
@@ -119,8 +119,6 @@ int main(int argc, char **argv) {
 		else if (token == "ucinewgame") ucinewgame(pos, dq);
 		else if (token == "position") position(ss, pos, dq);
 		else if (token == "go") go(ss, pos, dq);
-		// else if (token == "stop") ;
-		// else if (token == "ponderhit") ;
 		else if (token == "quit") break;
 		else  std::cout << "No such command '" << token << "'" << std::endl;
 	}

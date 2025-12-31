@@ -2,14 +2,14 @@
 #include "bitboard.h"
 #include "random.h"
 #include "types.h"
-#include <bits/floatn-common.h>
+// Đã xóa bits/floatn-common.h
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <sstream>
 #include <string>
-#include <unistd.h>
+// Đã xóa unistd.h
 
 constexpr Piece Pieces[] = {	W_PAWN, W_ROOK, W_KNIGHT, W_BISHOP, W_QUEEN, W_KING,
 				B_PAWN, B_ROOK, B_KNIGHT, B_BISHOP, B_QUEEN, B_KING};
@@ -712,4 +712,20 @@ void Position::print_board() const {
 		}
 	}
 	std::cout << std::endl;
+}
+
+
+bool Position::checkmate(bool checkOpponent) {
+	Color c = this->side_to_move();
+	if (checkOpponent) c = flip_color(c);
+
+	if (!this->kingIsAttacked(c)) return false;
+
+	if (c == this->side_to_move()) {
+		std::vector<Move> moves;
+		this->generate_moves(moves); 
+		return moves.empty(); 
+	}
+
+	return false;
 }

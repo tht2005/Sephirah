@@ -74,17 +74,6 @@ enum Phase {
 	MG = 0, EG = 1, PHASE_NB = 2
 };
 
-/// A move needs 16 bits to be stored
-///
-/// bit  0- 5: destination square (from 0 to 63)
-/// bit  6-11: origin square (from 0 to 63)
-/// bit 12-13: promotion piece type - 2 (from KNIGHT-2 to QUEEN-2)
-/// bit 14-15: special move flag: promotion (1), en passant (2), castling (3)
-/// NOTE: EN-PASSANT bit is set only when a pawn can be captured
-///
-/// Special cases are MOVE_NONE and MOVE_NULL. We can sneak these in because in
-/// any normal move destination square is always different from origin square
-/// while MOVE_NONE and MOVE_NULL have the same origin and destination square.
 enum Move : int {
 	MOVE_NONE,
 	MOVE_NULL = 65,
@@ -97,10 +86,6 @@ enum MoveType : int {
 	CASTLING  = 3 << 14
 };
 
-/// Score enum stores a middlegame and an endgame value in a single integer (enum).
-/// The least significant 16 bits are used to store the middlegame value and the
-/// upper 16 bits are used to store the endgame value. We have to take care to
-/// avoid left-shifting a signed int to avoid undefined behavior.
 enum Score : int {
 	SCORE_ZERO = 0,
 };
@@ -164,20 +149,14 @@ inline T& operator*=(T& d, int i) { return d = T(int(d) * i); }    \
 inline T& operator/=(T& d, int i) { return d = T(int(d) / i); }
 
 ENABLE_FULL_OPERATORS_ON(Value);
-ENABLE_FULL_OPERATORS_ON(Score);
-
 ENABLE_FULL_OPERATORS_ON(Square);
 ENABLE_INCR_OPERATORS_ON(Square);
-
 ENABLE_INCR_OPERATORS_ON(PieceType);
-
 ENABLE_FULL_OPERATORS_ON(File);
 ENABLE_FULL_OPERATORS_ON(Rank);
 ENABLE_INCR_OPERATORS_ON(File);
 ENABLE_INCR_OPERATORS_ON(Rank);
-
 ENABLE_FULL_OPERATORS_ON(Direction);
-
 ENABLE_INCR_OPERATORS_ON(Piece);
 
 inline Move& operator|= (Move& m, MoveType t) {
@@ -223,9 +202,6 @@ constexpr Score make_score(int mg, int eg) {
 	return Score((int)((unsigned int)eg << 16) + mg);
 }
 
-/// Extracting the signed lower and upper 16 bits is not so trivial because
-/// according to the standard a simple cast to short is implementation defined
-/// and so is a right shift of a signed integer.
 inline Value eg_value(Score s) {
 	union { uint16_t u; int16_t s; } eg = { uint16_t(unsigned(s + 0x8000) >> 16) };
 	return Value(eg.s);
@@ -235,6 +211,29 @@ inline Value mg_value(Score s) {
 	union { uint16_t u; int16_t s; } mg = { uint16_t(unsigned(s)) };
 	return Value(mg.s);
 }
+
+constexpr Score operator+(Score d1, Score d2) {
+    return make_score(mg_value(d1) + mg_value(d2), eg_value(d1) + eg_value(d2));
+}
+constexpr Score operator-(Score d1, Score d2) {
+    return make_score(mg_value(d1) - mg_value(d2), eg_value(d1) - eg_value(d2));
+}
+constexpr Score operator-(Score d) {
+    return make_score(-mg_value(d), -eg_value(d));
+}
+constexpr Score operator*(int i, Score d) {
+    return make_score(i * mg_value(d), i * eg_value(d));
+}
+constexpr Score operator*(Score d, int i) {
+    return make_score(mg_value(d) * i, eg_value(d) * i);
+}
+constexpr Score operator/(Score d, int i) {
+    return make_score(mg_value(d) / i, eg_value(d) / i);
+}
+inline Score& operator+=(Score& d1, Score d2) { return d1 = d1 + d2; }
+inline Score& operator-=(Score& d1, Score d2) { return d1 = d1 - d2; }
+inline Score& operator*=(Score& d, int i) { return d = d * i; }
+inline Score& operator/=(Score& d, int i) { return d = d / i; }
 
 constexpr uint8_t make_genbound(int generation, bool pv, Bound b) {
 	return generation | (pv << 5) | (b << 6);
@@ -267,7 +266,7 @@ constexpr Square advance(Square sq, int df, int dr) {
 	return (FILE_A <= f && f <= FILE_H
 			&& RANK_1 <= r && r <= RANK_8)
 		? make_square(f, r)
-		: SQ_NB; // invalid
+		: SQ_NB;
 }
 
 constexpr Piece make_piece(Color c, PieceType pt) {
@@ -367,7 +366,7 @@ constexpr Rank get_initial_pawn_rank(Color c) {
 }
 
 constexpr bool is_ok(Move m) {
-	return from_sq(m) != to_sq(m); // Catch MOVE_NULL and MOVE_NONE
+	return from_sq(m) != to_sq(m);
 }
 
 constexpr Piece char_to_piece (char c) {
@@ -389,7 +388,7 @@ constexpr Piece char_to_piece (char c) {
 }
 
 inline File map_to_queenside(File f) {
-	return std::min(f, File(FILE_H - f)); // Map files ABCDEFGH to files ABCDDCBA
+	return std::min(f, File(FILE_H - f));
 }
 
 constexpr char piece_to_char (Piece pc) {
@@ -410,15 +409,15 @@ constexpr char piece_to_char (Piece pc) {
 }
 
 constexpr Color operator~(Color c) {
-  return Color(c ^ BLACK); // Toggle color
+  return Color(c ^ BLACK);
 }
 
 constexpr Square operator~(Square s) {
-  return Square(s ^ SQ_A8); // Vertical flip SQ_A1 -> SQ_A8
+  return Square(s ^ SQ_A8);
 }
 
 constexpr Piece operator~(Piece pc) {
-  return Piece(pc ^ 8); // Swap color of piece B_KNIGHT -> W_KNIGHT
+  return Piece(pc ^ 8);
 }
 
 inline std::string move_to_str(Move m) {

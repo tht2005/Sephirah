@@ -19,13 +19,7 @@ struct StateInfo {
 	StateInfo *prev;
 };
 
-/// A list to keep track of the position states along the setup moves (from the
-/// start position to the position just before the search starts). Needed by
-/// 'draw by repetition' detection. Use a std::deque because pointers to
-/// elements are not invalidated upon list resizing.
 typedef std::unique_ptr<std::deque<StateInfo>> StateListPtr;
-
-// class Thread;
 
 class Position {
 public:
@@ -38,14 +32,13 @@ public:
 
 	Bitboard pieces() const;
 	Bitboard pieces(PieceType pt) const;
-	// Bitboard pieces(PieceType pt1, PieceType pt2) const;
 	Bitboard pieces(Color c) const;
 	Bitboard pieces(Color c, PieceType pt) const;
-	// Bitboard pieces(Color c, PieceType pt1, PieceType pt2) const;
 	Piece piece_on(Square s) const;
 	Square ep_square() const;
 	Color side_to_move() const;
 	int rule50() const;
+	Key key() const { return st->key; } 
 
 	int castling_rights() const;
 	int castling_rights(Color c) const;
@@ -80,21 +73,12 @@ private:
 
 	bool checkStrictlyLegalMove(Move m);
 
-	// void set_state(StateInfo& st);
-
 	Piece board[SQ_NB];
-	// int pieceCount[PIECE_NB];
-	// int index[SQ_NB];
-	// Square pieceList[PIECE_NB][16];
 	Bitboard byColorBB[COLOR_NB];
 	Bitboard byTypeBB[PIECE_TYPE_NB];
-	// int castlingRightsMask[SQ_NB];
-	// Square castlingRookSquare[CASTLING_RIGHT_NB];
-	// Bitboard castlingPath[CASTLING_RIGHT_NB];
 	Color sideToMove;
 	int ply;
 	StateInfo *st;
-	// Thread *th;
 };
 
 inline Piece Position::piece_on(Square s) const {
@@ -128,33 +112,19 @@ inline bool Position::can_castle(CastlingRights cr) const {
 	Square king_to = this->castling_king_square(cr);
 	Square rook_to = this->castling_rook_to_square(cr);
 
-	// 1. King path must be empty (except king)
 	Bitboard king_path = path_bb(king_sq, king_to) & ~square_bb(king_sq);
 	if (king_path & this->pieces())
 		return false;
 
-	// 2. King must not pass through or into check
 	Bitboard attacks = this->generate_attack_bitboard(flip_color(us));
 	if (path_bb(king_sq, king_to) & attacks)
 		return false;
 
-	// 3. Rook destination must be empty
 	if (this->piece_on(rook_to) != NO_PIECE)
 		return false;
 
 	return true;
 }
-
-// inline bool Position::can_castle(CastlingRights cr) const {
-// 	if (!(this->castling_rights() & cr)) return false;
-// 	Square rook_sq = this->castling_rook_square(cr);
-// 	Piece rk = this->piece_on(rook_sq);
-// 	if (rk != make_piece((cr & WHITE_SIDE) ? WHITE : BLACK, ROOK)) return false;
-// 	Square king_sq = make_square(FILE_E, get_initial_king_rank(this->sideToMove));
-// 	if (path_bb(king_sq, this->castling_king_square(cr)) & this->generate_attack_bitboard(flip_color(this->sideToMove)))
-// 		return false;
-// 	return __builtin_popcount(path_bb(king_sq, rook_sq) & this->pieces()) == 2;
-// }
 
 inline Square Position::castling_king_square(CastlingRights cr) const {
 	Color c = (cr & WHITE_SIDE) ? WHITE : BLACK;

@@ -4,11 +4,32 @@
 #include "types.h"
 #include <cassert>
 
+// --- THÊM ĐOẠN NÀY ĐỂ HỖ TRỢ WINDOWS (MSVC) ---
+#ifdef _MSC_VER
+#include <intrin.h>
+#pragma intrinsic(_BitScanForward64)
+#pragma intrinsic(__popcnt)
+#pragma intrinsic(__popcnt64)
+
+// Định nghĩa lại các hàm của Linux sang Windows
+inline int __builtin_ctzll(unsigned long long mask) {
+    unsigned long index;
+    if (_BitScanForward64(&index, mask))
+        return (int)index;
+    return 0;
+}
+
+#define __builtin_popcount __popcnt
+#define __builtin_popcountll __popcnt64
+#endif
+// ----------------------------------------------
+
 #define act_bit(b, i) do { (b) |= 1ULL << (i); } while(0)
 #define dec_bit(b, i) do { (b) &= ~(1ULL << (i)); } while (0)
 #define hav_bit(b, i) ((b) & (1ULL << (i)))
 
-constexpr Square lsb(Bitboard b) {
+// XÓA "constexpr" Ở ĐÂY VÌ MSVC KHÔNG HỖ TRỢ TRONG TRƯỜNG HỢP NÀY
+inline Square lsb(Bitboard b) {
 	return Square(__builtin_ctzll(b));
 }
 

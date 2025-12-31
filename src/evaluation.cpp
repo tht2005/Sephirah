@@ -8,7 +8,7 @@
 
 int count(const Position &pos, Color c, PieceType pt) {
   Bitboard b = pos.pieces(c, pt);
-  return __builtin_popcount(b);
+  return __builtin_popcountll(b); 
 }
 
 Score piece_value_bonus(const Position &pos, Color col) {
@@ -132,7 +132,7 @@ Value eval(const Position &pos) {
 
   // Piece-Square Table (PSQT) positional score (use precomputed tables)
   Score psqtScoreWhite = psqt_bonus(pos, WHITE) - piece_value_bonus(pos, WHITE);
-  Score psqtScoreBlack = psqt_bonus(pos, BLACK) - piece_value_bonus(pos, BLACK);
+  Score psqtScoreBlack = -(psqt_bonus(pos, BLACK) + piece_value_bonus(pos, BLACK));
 
   // Initialize aggregate scores for each side
   Score scoreWhite = materialScoreWhite + psqtScoreWhite;
