@@ -50,7 +50,11 @@ public:
 	void do_move(Move m, StateInfo& newSt);
 	void undo_move();
 	void generate_moves(std::vector<Move>& moves);
-	bool checkmate(bool checkOpponent=false);
+
+	bool is_checkmate(bool checkOpponent=false);
+	bool is_draw() const;
+	bool kingIsAttacked(Color c) const;
+	bool is_in_check() const;
 
 	Move string_to_move(std::string str);
 
@@ -69,7 +73,6 @@ private:
 	Bitboard generate_attack_bitboard(Color c) const;
 	bool squareIsAttacked(Color c, Square to) const;
 	bool pieceIsAttacked(Color c, PieceType pt) const;
-	bool kingIsAttacked(Color c);
 
 	bool checkStrictlyLegalMove(Move m);
 

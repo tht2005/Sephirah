@@ -633,33 +633,14 @@ inline bool Position::squareIsAttacked(Color c, Square to) const {
 
 inline bool Position::pieceIsAttacked(Color c, PieceType pt) const {
 	Bitboard b = this->pieces(c, pt);
-	// if (!b) {
-		// __builtin_trap();   // causes a trap that GDB can catch
-	// }
 	assert(b);
 	Square sq = lsb(b);
 	return this->squareIsAttacked(flip_color(c), sq);
 }
 
-bool Position::kingIsAttacked(Color c) {
+bool Position::kingIsAttacked(Color c) const {
 	return this->pieceIsAttacked(c, KING);
 }
-
-// bool Position::checkmate(bool checkOpponent) {
-// 	Color c = this->side_to_move();
-// 	if (checkOpponent) c = flip_color(c);
-//
-// 	if (!this->kingIsAttacked(c)) return false;
-// 	std::vector<Move> moves;
-// 	this->generate_moves(moves);
-// 	for (Move m : moves) {
-// 		StateInfo st;
-// 		this->do_move(m, st);
-// 		if (!this->kingIsAttacked(c)) return false;
-// 		this->undo_move();
-// 	}
-// 	return true;
-// }
 
 bool Position::checkStrictlyLegalMove(Move m) {
 	StateInfo st;
@@ -718,7 +699,7 @@ void Position::print_board() const {
 }
 
 
-bool Position::checkmate(bool checkOpponent) {
+bool Position::is_checkmate(bool checkOpponent) {
 	Color c = this->side_to_move();
 	if (checkOpponent) c = flip_color(c);
 
@@ -732,3 +713,23 @@ bool Position::checkmate(bool checkOpponent) {
 
 	return false;
 }
+
+bool Position::is_draw() const {
+	if (this->st->rule50 >= 100) return true;
+
+	int moves_to_check = this->st->rule50;
+	StateInfo* curr = this->st->prev;
+
+	for (int i = 0; i < moves_to_check && curr != nullptr; ++i) {
+		if (curr->key == this->st->key) {
+			return true; // Found repetition
+		}
+		curr = curr->prev;
+	}
+	return false;
+}
+
+bool Position::is_in_check() const {
+	return this->kingIsAttacked(this->sideToMove);
+}
+
