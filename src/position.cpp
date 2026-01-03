@@ -216,7 +216,7 @@ void Position::do_move(Move m, StateInfo& newSt) {
 			this->move_piece(fr_square, to_square);
 
 			// lost all castling rights
-			dec_bit(newSt.castlingRights, get_side(this->sideToMove));
+			newSt.castlingRights &= ~get_side(this->sideToMove);
 		}	break;
 		default:
 			this->move_piece(fr_square, to_square);
@@ -226,9 +226,9 @@ void Position::do_move(Move m, StateInfo& newSt) {
 				newSt.epSquare = to_square - push_pawn(this->sideToMove);
 			}
 			if (fr_piece_type == KING) {
-				dec_bit(newSt.castlingRights, get_side(this->sideToMove));
+				newSt.castlingRights &= ~get_side(this->sideToMove);
 			} else if (fr_piece_type == ROOK) {
-				dec_bit(newSt.castlingRights, get_side(this->sideToMove) & get_rook_side(fr_square));
+				newSt.castlingRights &= ~(get_side(this->sideToMove) & get_rook_side(fr_square));
 			}
 			break;
 	}

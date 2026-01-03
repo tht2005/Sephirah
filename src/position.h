@@ -112,8 +112,7 @@ inline bool Position::can_castle(CastlingRights cr) const {
 	Square king_to = this->castling_king_square(cr);
 	Square rook_to = this->castling_rook_to_square(cr);
 
-	Bitboard king_path = path_bb(king_sq, king_to) & ~square_bb(king_sq);
-	if (king_path & this->pieces())
+	if (path_bb(king_sq, rook_sq) & ~square_bb(king_sq) & ~square_bb(rook_sq) & this->pieces())
 		return false;
 
 	Bitboard attacks = this->generate_attack_bitboard(flip_color(us));
