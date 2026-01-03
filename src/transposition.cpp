@@ -15,12 +15,12 @@ TranspositionTable ttable;
 TTEntry::TTEntry() : key(0), move(MOVE_NONE), eval(0), value(0), genbound(0), depth(0) {}
 TTEntry::TTEntry(Key k_, Move m_, Score e_, Score val_, uint8_t gen_, bool pv,
 		Bound b_, uint8_t d_)
-	: key(uint16_t(k_)), move(m_), eval(e_), value(val_),
+	: key(uint64_t(k_)), move(m_), eval(e_), value(val_),
 	genbound(make_genbound(gen_, pv, b_)), depth(d_) {}
 
-bool can_replace(TTEntry old, TTEntry nw) {
-	return nw.depth >= old.depth;
-}
+// bool can_replace(TTEntry old, TTEntry nw) {
+// 	return nw.depth >= old.depth;
+// }
 
 size_t TranspositionTable::size() {
 	return entries.size();
@@ -57,12 +57,6 @@ void TranspositionTable::on_hash_change(const Option& op) {
 
 void TranspositionTable::change_size(size_t nsize) {
 	std::vector<TTEntry> new_entries(nsize);
-	for (size_t i = 0; i < entries.size(); ++i) {
-		if (entries[i].key != 0) {
-			size_t j = get_slot(entries[i].key, new_entries.size());
-			new_entries[j] = entries[i];
-		}
-	}
 	entries.swap(new_entries);
 }
 
@@ -72,7 +66,19 @@ TTEntry TranspositionTable::get(Key k) {
 
 void TranspositionTable::set(Key k, const TTEntry& entry) {
 	size_t idx = get_slot(k, entries.size());
-	if (entries[idx].key == 0 || can_replace(entries[idx], entry)) {
-		entries[idx] = entry;
-	}
+	entries[idx] = entry;
 }
+
+// Adjust mate score to be relative to the root rather than current ply
+Value TranspositionTable::value_to_tt(Value v, int ply) {
+	if (v >= VALUE_MATE_IN_MAX_PLY) return Value(v + ply);
+	if (v <= VALUE_MATED_IN_MAX_PLY) return Value(v - ply);
+	return v;
+}
+
+Value TranspositionTable::value_from_tt(Value v, int ply) {
+	if (v >= VALUE_MATE_IN_MAX_PLY) return Value(v - ply);
+	if (v <= VALUE_MATED_IN_MAX_PLY) return Value(v + ply);
+	return v;
+}
+

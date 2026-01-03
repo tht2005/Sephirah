@@ -3,13 +3,11 @@
 
 #include "option.h"
 #include "types.h"
-#include <atomic>
 #include <cstddef>
 #include <cstdint>
 
-// TODO lockless shared hash table or something ...
 struct TTEntry {
-	uint16_t key; // truncate key from 64 bit to 16 bit
+	uint64_t key;
 	uint16_t move;
 	uint16_t eval;
 	uint16_t value;
@@ -29,8 +27,12 @@ public:
 	TTEntry get(Key k);
 	void set(Key k, const TTEntry& entry);
 	size_t size();
+
+	// Helpers for Mate Score normalization
+	static Value value_to_tt(Value v, int ply);
+	static Value value_from_tt(Value v, int ply);
+
 private:
-	std::atomic<uint64_t> packed_key;
 	std::vector<TTEntry> entries;
 };
 
