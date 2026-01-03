@@ -23,7 +23,9 @@ int score_move(const Position& pos, Move m) {
 }
 
 // Quiescence Search: Tìm kiếm yên tĩnh để tránh Horizon Effect
-Value qsearch(Position& pos, Value alpha, Value beta) {
+Value qsearch(Position& pos, Value alpha, Value beta, int &nodes) {
+	++nodes;
+
 	Value stand_pat = eval(pos);
 	if (stand_pat >= beta) return beta;
 	if (alpha < stand_pat) alpha = stand_pat;
@@ -33,8 +35,7 @@ Value qsearch(Position& pos, Value alpha, Value beta) {
 	
 	std::vector<ScoredMove> scored_moves;
 	for (Move m : moves) {
-		// Chỉ xét nước ăn quân hoặc phong cấp
-		if (pos.piece_on(to_sq(m)) == NO_PIECE && type_of(m) != PROMOTION) continue;
+		if (pos.piece_on(to_sq(m)) == NO_PIECE && type_of(m) != PROMOTION && type_of(m) != ENPASSANT) continue;
 		int s = score_move(pos, m);
 		scored_moves.push_back({m, s});
 	}
@@ -47,7 +48,7 @@ Value qsearch(Position& pos, Value alpha, Value beta) {
 	for (const auto& sm : scored_moves) {
 		Move m = sm.move;
 		pos.do_move(m, st);
-		Value val = -qsearch(pos, -beta, -alpha);
+		Value val = -qsearch(pos, -beta, -alpha, nodes);
 		pos.undo_move();
 
 		if (val >= beta) return beta;
@@ -57,31 +58,32 @@ Value qsearch(Position& pos, Value alpha, Value beta) {
 }
 
 // Hàm tìm kiếm chính (Alpha-Beta Pruning)
-Value search(Position& pos, StateListPtr& dq, int depth, Value alpha, Value beta) {
-	// Vào bước đường cùng thì gọi QSearch
-	if (depth <= 0) return qsearch(pos, alpha, beta);
+Value search(Position& pos, StateListPtr& dq, int depth, int ply, Value alpha, Value beta, int& nodes) {
+	if (pos.is_draw()) return VALUE_DRAW;
+	alpha = std::max(alpha, Value(-VALUE_MATE + ply));
+	beta = std::min(beta, Value(VALUE_MATE - ply + 1));
+	if (alpha >= beta) return alpha;
 
-	// 1. Transposition Table Probe (Tra cứu bảng băm)
 	Key key = pos.key();
 	TTEntry tte = ttable.get(key);
 	Move tt_move = MOVE_NONE;
 
-	if (tte.key == uint16_t(key)) {
-		tt_move = Move(tte.move); // Lấy nước đi tốt nhất từ quá khứ để sắp xếp
+	if (tte.key == uint64_t(key)) {
+		tt_move = Move(tte.move);
 		
-		// [LOGIC IDS + TT]: Nếu dữ liệu trong bảng băm đủ sâu (uy tín) thì dùng luôn
 		if (tte.depth >= depth) {
-			Value ttValue = Value(int16_t(tte.value)); 
-			
-			// Khôi phục lại điểm số thực tế từ điểm số lưu trữ (nếu cần xử lý mate score)
-			// Ở đây dùng trực tiếp vì chưa có logic mate distance pruning phức tạp
+			Value ttValue = TranspositionTable::value_from_tt(Value(tte.value), ply);
 			
 			Bound b = get_bound_type(tte.genbound);
-			if (b == BOUND_EXACT) return ttValue; // Điểm chính xác
-			if (b == BOUND_LOWER && ttValue >= beta) return ttValue; // Cắt tỉa Beta
-			if (b == BOUND_UPPER && ttValue <= alpha) return ttValue; // Cắt tỉa Alpha
+			if (b == BOUND_EXACT) return ttValue;
+			if (b == BOUND_LOWER && ttValue >= beta) return ttValue;
+			if (b == BOUND_UPPER && ttValue <= alpha) return ttValue;
 		}
 	}
+
+	bool in_check = pos.is_in_check();
+	if (in_check) ++depth;
+	if (depth <= 0 && !in_check) return qsearch(pos, alpha, beta, nodes);
 
 	// 2. Sinh nước đi
 	std::vector<Move> moves;
@@ -89,7 +91,7 @@ Value search(Position& pos, StateListPtr& dq, int depth, Value alpha, Value beta
 	
 	// Kiểm tra chiếu hết hoặc hòa cờ
 	if (moves.empty()) {
-		if (pos.checkmate()) return Value(-VALUE_MATE + pos.rule50());
+		if (in_check) return Value(-VALUE_MATE + ply);
 		return VALUE_DRAW;
 	}
 
@@ -117,7 +119,7 @@ Value search(Position& pos, StateListPtr& dq, int depth, Value alpha, Value beta
 		dq->emplace_back();
 		pos.do_move(m, dq->back());
 
-		Value val = -search(pos, dq, depth - 1, -beta, -alpha);
+		Value val = -search(pos, dq, depth - 1, ply + 1, -beta, -alpha, nodes);
 
 		pos.undo_move();
 		dq->pop_back();
@@ -136,18 +138,18 @@ Value search(Position& pos, StateListPtr& dq, int depth, Value alpha, Value beta
 		}
 	}
 
-	// 5. Lưu vào Transposition Table
-	// Luôn lưu lại kết quả để phục vụ cho các lần lặp (Iteration) sau sâu hơn
-	ttable.set(key, TTEntry(key, best_move, SCORE_ZERO, Score(best_val), 0, false, bound, depth));
-	
+	Value tt_val_to_store = TranspositionTable::value_to_tt(best_val, ply);
+	ttable.set(key, TTEntry(key, best_move, SCORE_ZERO, Score(tt_val_to_store), 0, false, bound, depth));
+
 	return best_val;
 }
 
 // Hàm gốc gọi từ UCI: Thực hiện Iterative Deepening Search (IDS)
 Move find_best_move(Position& pos, StateListPtr& dq, int max_depth) {
 	Move best_root_move = MOVE_NONE;
+
+	int nodes = 0;
 	
-	// Vòng lặp IDS: Tìm từ depth 1 -> max_depth
 	for (int depth = 1; depth <= max_depth; ++depth) {
 		Value best_val = -VALUE_INFINITE;
 		Value alpha = -VALUE_INFINITE;
@@ -156,38 +158,35 @@ Move find_best_move(Position& pos, StateListPtr& dq, int max_depth) {
 		std::vector<Move> moves;
 		pos.generate_moves(moves);
 		
-		// Sắp xếp nước đi ở Root
 		std::vector<ScoredMove> scored_moves;
 		for (Move m : moves) {
 			int s = score_move(pos, m);
-			if (m == best_root_move) s += 30000; // Ưu tiên nước tốt nhất của độ sâu trước (depth - 1)
+			if (m == best_root_move) s += 30000;
 			scored_moves.push_back({m, s});
 		}
 		std::sort(scored_moves.begin(), scored_moves.end(), [](const ScoredMove& a, const ScoredMove& b) {
 			return a.score > b.score;
 		});
 
-		// Duyệt các nước đi ở Root
+		Move current_best_move = MOVE_NONE;
 		for (const auto& sm : scored_moves) {
 			Move m = sm.move;
 			dq->emplace_back();
 			pos.do_move(m, dq->back());
 
-			Value val = -search(pos, dq, depth - 1, -beta, -alpha);
+			Value val = -search(pos, dq, depth - 1, 1, -beta, -alpha, nodes);
 
 			pos.undo_move();
 			dq->pop_back();
 
 			if (val > best_val) {
 				best_val = val;
-				best_root_move = m;
+				current_best_move = m;
 				alpha = val;
 			}
 		}
-		
-		// In thông tin UCI sau khi hoàn thành mỗi độ sâu
-		// GUI sẽ thấy bot "suy nghĩ" dần dần từ nông đến sâu
-		std::cout << "info depth " << depth << " score cp " << best_val << " pv " << move_to_str(best_root_move) << std::endl;
+
+		best_root_move = current_best_move;
 	}
 
 	return best_root_move;
