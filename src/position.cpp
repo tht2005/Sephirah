@@ -240,9 +240,12 @@ void Position::do_move(Move m, StateInfo& newSt) {
 	}
 
 	// update new key
-	if (to_piece != NO_PIECE) {
-		newSt.key ^= Zobrist::psq[to_piece][to_square];
+	Piece piece_to_add = fr_piece;
+	if (moveType == PROMOTION) {
+		piece_to_add = make_piece(this->sideToMove, promotion_type(m));
 	}
+	newSt.key ^= Zobrist::psq[piece_to_add][to_square];
+
 	if (newSt.epSquare != SQ_NONE) {
 		newSt.key ^= Zobrist::enpassant[get_file(newSt.epSquare)];
 	}
