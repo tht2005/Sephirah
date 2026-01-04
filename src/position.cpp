@@ -303,166 +303,232 @@ void Position::undo_move() {
 }
 
 void Position::generate_moves(svec<Move>& moves) {
-	for (Square s = SQ_A1; s < SQ_NB; ++s) {
-		Piece pc = this->board[s];
-		if (pc == NO_PIECE || this->sideToMove != get_color(pc)) continue;
+	moves.clear();
 
-		PieceType pt = get_piece_type(pc);
-		switch (pt) {
-			case PAWN: {
-				Square one_forward = s + push_pawn(this->sideToMove);
-				Square two_forward = s + 2 * push_pawn(this->sideToMove);
+	Color us = this->sideToMove;
+	Color them = flip_color(us);
 
-				// push one
-				if (valid_square(one_forward) && this->square_empty(one_forward)) {
-					if (get_rank(s) == get_initial_pawn_rank(flip_color(this->sideToMove))) {
-						Move pro_m= make_move(s, one_forward);
-						pro_m |= PROMOTION;
-						for (PieceType pro_pt = KNIGHT; pro_pt <= QUEEN; ++pro_pt) {
-							moves.push_back(act_promotion_type(pro_m, pro_pt));
-						}
-					} else {
-						moves.push_back(make_move(s, one_forward));
-					}
-					// push two
-					if (valid_square(two_forward) && this->square_empty(two_forward)
-					&& get_rank(s) == get_initial_pawn_rank(this->sideToMove)) {
-						moves.push_back(make_move(s, two_forward));
-					}
-				}
-				// diagonal
-				for (int dir : { -1, 1 }) {
-					Square atk = advance(s, dir, push_pawn_rank(this->sideToMove));
-					if (valid_square(atk) && can_move_to(s, atk)) {
-						Piece tgt = this->piece_on(atk);
-						if (tgt != NO_PIECE && can_capture_piece(tgt)) {
-							Move basem = make_move(s, atk);
-							if (get_rank(s) == get_initial_pawn_rank(flip_color(this->sideToMove))) {
-								Move pro_m = Move(basem | PROMOTION);
-								for (PieceType pro_pt = KNIGHT; pro_pt <= QUEEN; ++pro_pt) {
-									moves.push_back(act_promotion_type(pro_m, pro_pt));
-								}
-							} else {
-								moves.push_back(basem);
-							}
-						}
-					}
-				}
-				// enpassant
-				Square epSquare = this->st->epSquare;
-				if (epSquare != SQ_NONE) {
-					if (get_rank(s) + push_pawn_rank(this->sideToMove) == get_rank(epSquare)
-					&& abs(get_file(s) - get_file(epSquare)) == 1) {
-						Move m = make_move(s, epSquare);
-						m |= ENPASSANT;
-						moves.push_back(m);
-					}
-				}
-			}	break;
+	Bitboard our_pieces = this->pieces(us);
+	Bitboard their_pieces = this->pieces(them);
+	Bitboard empty_squares = ~(our_pieces | their_pieces);
 
-			// simple move type
-			case KING:
-			case KNIGHT: {
-				int num_dir;
-				const int (*dirs)[2];
-				if (pt == KNIGHT) {
-					static const int knight_dirs[][2] = {
-						{1, 2},
-						{2, 1},
-						{2, -1},
-						{1, -2},
-						{-1, -2},
-						{-2, -1},
-						{-2, 1},
-						{-1, 2},
-					};
-					num_dir = 8;
-					dirs = knight_dirs;
-				} else if (pt == KING) {
-					static const int king_dirs[][2] = {
-						{0, 1}, {0, -1}, {-1, 0}, {1, 0}, {1, 1}, {-1, 1}, {1, -1}, {-1, -1},
-					};
-					num_dir = 8;
-					dirs = king_dirs;
-				}
+	// --- PAWNS ---
+	Bitboard pawns = this->pieces(us, PAWN);
+	Direction up = push_pawn(us);
+	Rank promo_rank = get_initial_pawn_rank(them);
+	Rank start_rank = get_initial_pawn_rank(us);
 
-				for (int i = 0; i < num_dir; ++i) {
-					Square to_square = advance(s, dirs[i][0], dirs[i][1]);
-					if (valid_square(to_square) && can_move_to(s, to_square)) {
-						if (this->square_empty(to_square) || can_capture_piece(this->piece_on(to_square))) {
-							moves.push_back(make_move(s, to_square));
-						}
-					}
-				}
-			}	break;
+	// 1. Single Push
+	// Shift pawns 'up'. AND with empty squares.
+	Bitboard single_push = (us == WHITE ? (pawns << 8) : (pawns >> 8)) & empty_squares;
 
-			// ray type
-			case BISHOP:
-			case ROOK:
-			case QUEEN: {
-				int num_rays;
-				const int (*rays)[2];
-
-				if (pt == BISHOP) {
-					static const int bs_rays[][2] = { {1, 1}, {-1, 1}, {1, -1}, {-1, -1} };
-					num_rays = 4;
-					rays = bs_rays;
-				} else if (pt == ROOK) {
-					static const int rk_rays[][2] = { {0, 1}, {0, -1}, {-1, 0}, {1, 0} };
-					num_rays = 4;
-					rays = rk_rays;
-				} else if (pt == QUEEN) {
-					static const int qu_rays[][2] = {
-						{0, 1}, {0, -1}, {-1, 0}, {1, 0}, {1, 1}, {-1, 1}, {1, -1}, {-1, -1},
-					};
-					num_rays = 8;
-					rays = qu_rays;
-				}
-
-				for (int i = 0; i < num_rays; ++i) {
-					Square to_square = advance(s, rays[i][0], rays[i][1]);
-					while (true) {
-						if (!valid_square(to_square)) break;
-						Piece pc = this->board[to_square];
-						if (pc == NO_PIECE) {
-							moves.push_back(make_move(s, to_square));
-						} else {
-							if (this->sideToMove != get_color(pc) && can_capture_piece(pc)) {
-								moves.push_back(make_move(s, to_square));
-							}
-							break;
-						}
-						to_square = advance(to_square, rays[i][0], rays[i][1]);
-					}
-				}
-
-			}	break;
-
-			default: assert(0);
+	Bitboard b = single_push;
+	while (b) {
+		Square to = pop_lsb(b);
+		Square from = to - up;
+		
+		if (get_rank(from) == promo_rank) {
+			Move m = make_move(from, to);
+			m |= PROMOTION;
+			moves.push_back(act_promotion_type(m, QUEEN));
+			moves.push_back(act_promotion_type(m, ROOK));
+			moves.push_back(act_promotion_type(m, BISHOP));
+			moves.push_back(act_promotion_type(m, KNIGHT));
+		} else {
+			moves.push_back(make_move(from, to));
 		}
 	}
 
-	// castling
-	CastlingRights c_side = this->sideToMove == WHITE ? WHITE_SIDE : BLACK_SIDE;
-	for (int side : { QUEEN_SIDE, KING_SIDE }) {
-		CastlingRights cr = CastlingRights(c_side & side);
-		if (this->can_castle(cr)) {
-			Square fr = make_square(FILE_E, get_initial_king_rank(this->sideToMove));
-			Square to = this->castling_king_square(cr);
-			Move m = make_move(fr, to);
+	// 2. Double Push
+	// Shift single_push 'up' again. AND with empty squares. AND check rank.
+	// White: Rank 3 -> 4. Black: Rank 6 -> 5.
+	Bitboard double_push = (us == WHITE ? (single_push << 8) : (single_push >> 8)) & empty_squares;
+	// Mask specific ranks (Rank 4 for White, Rank 5 for Black)
+	double_push &= (us == WHITE ? 0x00000000FF000000ULL : 0x000000FF00000000ULL);
+
+	b = double_push;
+	while (b) {
+		Square to = pop_lsb(b);
+		moves.push_back(make_move(to - up - up, to));
+	}
+
+	// 3. Captures
+	// Left Capture
+	Bitboard captures = 0;
+	// Note: Simple shift logic, requires file masking to prevent wrapping A-file to H-file
+	if (us == WHITE) captures = ((pawns & ~FileMask[FILE_A]) << 7) & their_pieces;
+	else             captures = ((pawns & ~FileMask[FILE_A]) >> 9) & their_pieces;
+
+	b = captures;
+	while (b) {
+		Square to = pop_lsb(b);
+		// From square calculation depends on direction
+		Square from = (us == WHITE) ? (to - 7) : (to + 9);
+		
+		if (get_rank(from) == promo_rank) {
+			Move m = Move(make_move(from, to) | PROMOTION);
+			moves.push_back(act_promotion_type(m, QUEEN));
+			moves.push_back(act_promotion_type(m, ROOK));
+			moves.push_back(act_promotion_type(m, BISHOP));
+			moves.push_back(act_promotion_type(m, KNIGHT));
+		} else {
+			moves.push_back(make_move(from, to));
+		}
+	}
+
+	// Right Capture
+	if (us == WHITE) captures = ((pawns & ~FileMask[FILE_H]) << 9) & their_pieces;
+	else             captures = ((pawns & ~FileMask[FILE_H]) >> 7) & their_pieces;
+
+	b = captures;
+	while (b) {
+		Square to = pop_lsb(b);
+		Square from = (us == WHITE) ? (to - 9) : (to + 7);
+		
+		if (get_rank(from) == promo_rank) {
+			Move m = Move(make_move(from, to) | PROMOTION);
+			moves.push_back(act_promotion_type(m, QUEEN));
+			moves.push_back(act_promotion_type(m, ROOK));
+			moves.push_back(act_promotion_type(m, BISHOP));
+			moves.push_back(act_promotion_type(m, KNIGHT));
+		} else {
+			moves.push_back(make_move(from, to));
+		}
+	}
+
+	// 4. En Passant
+	if (this->st->epSquare != SQ_NONE) {
+		Square ep = this->st->epSquare;
+		// Check pawns that can capture EP (left and right of EP square)
+		// This effectively checks "pawns attacking epSquare" logic reversed
+		Bitboard attackers = this->pieces(us, PAWN);
+		// Check pawn to the "left" (file - 1)
+		if (get_file(ep) > FILE_A) {
+			Square from = ep - up - 1; // e.g., if ep is d3, from is c3 (white) or c4? 
+			// Better: Check if we have a pawn at [ep_file-1, current_rank]
+			Square l_pawn = make_square(File(get_file(ep)-1), Rank(get_rank(ep)-push_pawn_rank(us)));
+			if (this->piece_on(l_pawn) == make_piece(us, PAWN)) {
+				 Move m = make_move(l_pawn, ep);
+				 m |= ENPASSANT;
+				 moves.push_back(m);
+			}
+		}
+		if (get_file(ep) < FILE_H) {
+			Square r_pawn = make_square(File(get_file(ep)+1), Rank(get_rank(ep)-push_pawn_rank(us)));
+			if (this->piece_on(r_pawn) == make_piece(us, PAWN)) {
+				 Move m = make_move(r_pawn, ep);
+				 m |= ENPASSANT;
+				 moves.push_back(m);
+			}
+		}
+	}
+
+	// --- KNIGHTS ---
+	Bitboard knights = this->pieces(us, KNIGHT);
+	while (knights) {
+		Square from = pop_lsb(knights);
+		// We need a lookup table for attacks. 
+		// Since we removed the slow loop, we need a quick way.
+		// Assuming you don't have precomputed tables yet, we'll use a small loop 
+		// but only for the specific piece, not board scan.
+		static const int k_dirs[8][2] = {{1,2},{2,1},{2,-1},{1,-2},{-1,-2},{-2,-1},{-2,1},{-1,2}};
+		for (auto& d : k_dirs) {
+			Square to = advance(from, d[0], d[1]);
+			if (is_ok(to) && (this->piece_on(to) == NO_PIECE || get_color(this->piece_on(to)) == them)) {
+				moves.push_back(make_move(from, to));
+			}
+		}
+	}
+
+	// --- KINGS ---
+	Bitboard king = this->pieces(us, KING); // Should be 1 bit
+	if (king) {
+		Square from = pop_lsb(king);
+		static const int ki_dirs[8][2] = {{0,1},{0,-1},{1,0},{-1,0},{1,1},{1,-1},{-1,1},{-1,-1}};
+		for (auto& d : ki_dirs) {
+			Square to = advance(from, d[0], d[1]);
+			if (is_ok(to) && (this->piece_on(to) == NO_PIECE || get_color(this->piece_on(to)) == them)) {
+				moves.push_back(make_move(from, to));
+			}
+		}
+	}
+
+	// --- SLIDING PIECES (Bishops, Rooks, Queens) ---
+	// Merging logic for efficiency
+	Bitboard sliders = this->pieces(us, BISHOP) | this->pieces(us, ROOK) | this->pieces(us, QUEEN);
+
+	while (sliders) {
+		Square from = pop_lsb(sliders);
+		PieceType pt = get_piece_type(this->piece_on(from));
+		
+		// Define directions based on piece type
+		bool orth = (pt == ROOK || pt == QUEEN);
+		bool diag = (pt == BISHOP || pt == QUEEN);
+		
+		static const int r_dirs[4][2] = {{0,1},{0,-1},{1,0},{-1,0}};
+		static const int b_dirs[4][2] = {{1,1},{1,-1},{-1,1},{-1,-1}};
+
+		if (orth) {
+			for (auto& d : r_dirs) {
+				Square to = from;
+				while (true) {
+					to = advance(to, d[0], d[1]);
+					if (!is_ok(to)) break;
+					Piece target = this->piece_on(to);
+					if (target == NO_PIECE) {
+						moves.push_back(make_move(from, to));
+					} else {
+						if (get_color(target) == them) moves.push_back(make_move(from, to));
+						break; // Hit a piece (own or enemy), stop ray
+					}
+				}
+			}
+		}
+		if (diag) {
+			for (auto& d : b_dirs) {
+				Square to = from;
+				while (true) {
+					to = advance(to, d[0], d[1]);
+					if (!is_ok(to)) break;
+					Piece target = this->piece_on(to);
+					if (target == NO_PIECE) {
+						moves.push_back(make_move(from, to));
+					} else {
+						if (get_color(target) == them) moves.push_back(make_move(from, to));
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	// --- CASTLING ---
+	CastlingRights cr_mask = get_side(us);
+	if (this->castling_rights() & cr_mask) {
+		if (this->can_castle(CastlingRights(cr_mask & KING_SIDE))) {
+			Square from = make_square(FILE_E, get_initial_king_rank(us));
+			Square to = make_square(FILE_G, get_initial_king_rank(us));
+			Move m = make_move(from, to);
+			m |= CASTLING;
+			moves.push_back(m);
+		}
+		if (this->can_castle(CastlingRights(cr_mask & QUEEN_SIDE))) {
+			Square from = make_square(FILE_E, get_initial_king_rank(us));
+			Square to = make_square(FILE_C, get_initial_king_rank(us));
+			Move m = make_move(from, to);
 			m |= CASTLING;
 			moves.push_back(m);
 		}
 	}
 
-	svec<Move> strict_moves;
-	for (Move m : moves) {
-		if (this->checkStrictlyLegalMove(m)) {
-			strict_moves.push_back(m);
+	// --- FILTER LEGAL MOVES ---
+	int valid_count = 0;
+	for (int i = 0; i < moves.count; ++i) {
+		if (this->checkStrictlyLegalMove(moves[i])) {
+			moves[valid_count++] = moves[i];
 		}
 	}
-	moves.swap(strict_moves);
-
+	moves.count = valid_count;
 }
 
 const std::string Position::fen() const {
@@ -521,7 +587,7 @@ const std::string Position::fen() const {
 	return ss.str();
 }
 
-inline Bitboard Position::generate_attack_bitboard(Color col) const {
+Bitboard Position::generate_attack_bitboard(Color col) const {
 	Bitboard b = 0;
 	for (Square s = SQ_A1; s < SQ_NB; ++s) {
 		Piece pc = this->board[s];
@@ -627,11 +693,11 @@ inline Bitboard Position::generate_attack_bitboard(Color col) const {
 	return b;
 }
 
-inline bool Position::squareIsAttacked(Color c, Square to) const {
+bool Position::squareIsAttacked(Color c, Square to) const {
 	return hav_bit(this->generate_attack_bitboard(c), to);
 }
 
-inline bool Position::pieceIsAttacked(Color c, PieceType pt) const {
+bool Position::pieceIsAttacked(Color c, PieceType pt) const {
 	Bitboard b = this->pieces(c, pt);
 	assert(b);
 	Square sq = lsb(b);
@@ -651,12 +717,12 @@ bool Position::checkStrictlyLegalMove(Move m) {
 	return legal;
 }
 
-inline bool Position::can_move_to(Square from, Square to) {
+bool Position::can_move_to(Square from, Square to) {
     Piece pc = this->board[to];
     return pc == NO_PIECE || get_color(pc) != sideToMove;
 }
 
-inline bool Position::can_capture_piece(Piece pc) {
+bool Position::can_capture_piece(Piece pc) {
     return pc != NO_PIECE && get_piece_type(pc) != KING;
 }
 
