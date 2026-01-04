@@ -170,6 +170,8 @@ TEST(Position, castling) {
 
 int main(int argc, char **argv)
 {
+	bitboard::init();
+	Position::init();
 	::testing::InitGoogleTest(&argc, argv);
 	return RUN_ALL_TESTS();
 }

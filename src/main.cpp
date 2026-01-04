@@ -1,3 +1,4 @@
+#include "bitboard.h"
 #include "option.h"
 #include "position.h"
 #include "transposition.h"
@@ -6,6 +7,7 @@
 
 int main(int argc, char **argv)
 {
+	bitboard::init();
 	PSQT::init();
 	Option::init();
 	Position::init();

@@ -100,33 +100,6 @@ inline int Position::castling_rights(Color c) const {
 	return this->castling_rights() & get_side(c);
 }
 
-inline bool Position::can_castle(CastlingRights cr) const {
-	if (!(this->castling_rights() & cr)) return false;
-
-	Color us = this->sideToMove;
-
-	Square king_sq = make_square(FILE_E, get_initial_king_rank(us));
-	Square rook_sq = this->castling_rook_square(cr);
-
-	if (this->piece_on(rook_sq) != make_piece(us, ROOK))
-		return false;
-
-	Square king_to = this->castling_king_square(cr);
-	Square rook_to = this->castling_rook_to_square(cr);
-
-	if (path_bb(king_sq, rook_sq) & ~square_bb(king_sq) & ~square_bb(rook_sq) & this->pieces())
-		return false;
-
-	Bitboard attacks = this->generate_attack_bitboard(flip_color(us));
-	if (path_bb(king_sq, king_to) & attacks)
-		return false;
-
-	if (this->piece_on(rook_to) != NO_PIECE)
-		return false;
-
-	return true;
-}
-
 inline Square Position::castling_king_square(CastlingRights cr) const {
 	Color c = (cr & WHITE_SIDE) ? WHITE : BLACK;
 	Rank r = get_initial_king_rank(c);

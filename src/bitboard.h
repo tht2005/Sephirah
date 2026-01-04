@@ -77,4 +77,11 @@ constexpr Bitboard path_bb(Square from, Square to) {
 	return b;
 }
 
+extern Bitboard PseudoAttacks[PIECE_TYPE_NB][SQ_NB];
+extern Bitboard PawnAttacks[COLOR_NB][SQ_NB];
+
+namespace bitboard {
+	void init();
+}
+
 #endif

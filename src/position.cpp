@@ -427,16 +427,10 @@ void Position::generate_moves(svec<Move>& moves) {
 	Bitboard knights = this->pieces(us, KNIGHT);
 	while (knights) {
 		Square from = pop_lsb(knights);
-		// We need a lookup table for attacks. 
-		// Since we removed the slow loop, we need a quick way.
-		// Assuming you don't have precomputed tables yet, we'll use a small loop 
-		// but only for the specific piece, not board scan.
-		static const int k_dirs[8][2] = {{1,2},{2,1},{2,-1},{1,-2},{-1,-2},{-2,-1},{-2,1},{-1,2}};
-		for (auto& d : k_dirs) {
-			Square to = advance(from, d[0], d[1]);
-			if (is_ok(to) && (this->piece_on(to) == NO_PIECE || get_color(this->piece_on(to)) == them)) {
-				moves.push_back(make_move(from, to));
-			}
+		Bitboard targets = PseudoAttacks[KNIGHT][from] & ~our_pieces;
+		while (targets) {
+			Square to = pop_lsb(targets);
+			moves.push_back(make_move(from, to));
 		}
 	}
 
@@ -444,12 +438,10 @@ void Position::generate_moves(svec<Move>& moves) {
 	Bitboard king = this->pieces(us, KING); // Should be 1 bit
 	if (king) {
 		Square from = pop_lsb(king);
-		static const int ki_dirs[8][2] = {{0,1},{0,-1},{1,0},{-1,0},{1,1},{1,-1},{-1,1},{-1,-1}};
-		for (auto& d : ki_dirs) {
-			Square to = advance(from, d[0], d[1]);
-			if (is_ok(to) && (this->piece_on(to) == NO_PIECE || get_color(this->piece_on(to)) == them)) {
-				moves.push_back(make_move(from, to));
-			}
+		Bitboard targets = PseudoAttacks[KING][from] & ~our_pieces;
+		while (targets) {
+			Square to = pop_lsb(targets);
+			moves.push_back(make_move(from, to));
 		}
 	}
 
@@ -693,8 +685,52 @@ Bitboard Position::generate_attack_bitboard(Color col) const {
 	return b;
 }
 
-bool Position::squareIsAttacked(Color c, Square to) const {
-	return hav_bit(this->generate_attack_bitboard(c), to);
+bool Position::squareIsAttacked(Color them, Square sq) const {
+	Color us = flip_color(them);
+
+	if (PawnAttacks[us][sq] & this->pieces(them, PAWN)) return true;
+	if (PseudoAttacks[KNIGHT][sq] & this->pieces(them, KNIGHT)) return true;
+	if (PseudoAttacks[KING][sq] & this->pieces(them, KING)) return true;
+
+	// Orthogonal (Rook/Queen)
+	Bitboard themRookQueen = this->pieces(them, ROOK) | this->pieces(them, QUEEN);
+	if (themRookQueen) {
+		 const int r_dirs[4][2] = {{0,1},{0,-1},{1,0},{-1,0}};
+		 for (auto& d : r_dirs) {
+			 Square t = sq;
+			 while(true) {
+				 t = advance(t, d[0], d[1]); // Assuming advance checks boundaries and returns SQ_NB
+				 if (!valid_square(t)) break; // Stop if off board
+				 
+				 Piece p = this->board[t];
+				 if (p != NO_PIECE) {
+					 if (get_color(p) == them && (get_piece_type(p) == ROOK || get_piece_type(p) == QUEEN)) return true;
+					 break; // Hit a blocker
+				 }
+			 }
+		 }
+	}
+
+	// Diagonal (Bishop/Queen)
+	Bitboard themBishopQueen = this->pieces(them, BISHOP) | this->pieces(them, QUEEN);
+	if (themBishopQueen) {
+		 const int b_dirs[4][2] = {{1,1},{1,-1},{-1,1},{-1,-1}};
+		 for (auto& d : b_dirs) {
+			 Square t = sq;
+			 while(true) {
+				 t = advance(t, d[0], d[1]);
+				 if (!valid_square(t)) break; 
+				 
+				 Piece p = this->board[t];
+				 if (p != NO_PIECE) {
+					 if (get_color(p) == them && (get_piece_type(p) == BISHOP || get_piece_type(p) == QUEEN)) return true;
+					 break; // Hit a blocker
+				 }
+			 }
+		 }
+	}
+
+	return false;
 }
 
 bool Position::pieceIsAttacked(Color c, PieceType pt) const {
@@ -797,5 +833,35 @@ bool Position::is_draw() const {
 
 bool Position::is_in_check() const {
 	return this->kingIsAttacked(this->sideToMove);
+}
+
+bool Position::can_castle(CastlingRights cr) const {
+	if (!(this->castling_rights() & cr)) return false;
+
+	Color us = this->sideToMove;
+	Color them = flip_color(us);
+
+	Square king_sq = make_square(FILE_E, get_initial_king_rank(us));
+	Square rook_sq = this->castling_rook_square(cr);
+
+	if (this->piece_on(rook_sq) != make_piece(us, ROOK))
+		return false;
+
+	Square king_to = this->castling_king_square(cr);
+	Square rook_to = this->castling_rook_to_square(cr);
+
+	if (path_bb(king_sq, rook_sq) & ~square_bb(king_sq) & ~square_bb(rook_sq) & this->pieces())
+		return false;
+
+	Bitboard king_path = path_bb(king_sq, king_to);
+	while(king_path) {
+		Square s = pop_lsb(king_path);
+		if (square_is_attacked(them, s)) return false;
+	}
+
+	if (this->piece_on(rook_to) != NO_PIECE)
+		return false;
+
+	return true;
 }
 
