@@ -69,14 +69,14 @@ Value eval(const Position &pos) {
 		int countW = 0;
 		while (w) {
 			Square s = pop_lsb(w);
-			whiteScore += PSQT::PieceValue[pt] + PSQT::psq[make_piece(WHITE, pt)][s];
+			whiteScore += PSQT::psq[make_piece(WHITE, pt)][s];
 			countW++;
 		}
 		
 		int countB = 0;
 		while (b) {
 			Square s = pop_lsb(b);
-			blackScore += PSQT::PieceValue[pt] + PSQT::psq[make_piece(BLACK, pt)][s];
+			blackScore += PSQT::psq[make_piece(BLACK, pt)][s];
 			countB++;
 		}
 		

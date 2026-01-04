@@ -123,7 +123,7 @@ void init() {
           File f = map_to_queenside(get_file(s));
           psq[ pc][ s] = Score(score + (get_piece_type(pc) == PAWN ? PBonus[get_rank(s)][get_file(s)]
                                                       : Bonus[pc][get_rank(s)][f]));
-          psq[~pc][~s] = Score(-psq[pc][s]);
+          psq[~pc][~s] = psq[pc][s];
       }
   }
 
