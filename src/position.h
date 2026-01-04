@@ -6,7 +6,6 @@
 #include <deque>
 #include <memory>
 #include <string>
-#include <vector>
 #include <iostream>
 
 struct StateInfo {
@@ -49,7 +48,7 @@ public:
 
 	void do_move(Move m, StateInfo& newSt);
 	void undo_move();
-	void generate_moves(std::vector<Move>& moves);
+	void generate_moves(svec<Move>& moves);
 
 	bool is_checkmate(bool checkOpponent=false);
 	bool is_draw() const;

@@ -302,7 +302,7 @@ void Position::undo_move() {
 	--this->ply;
 }
 
-void Position::generate_moves(std::vector<Move>& moves) {
+void Position::generate_moves(svec<Move>& moves) {
 	for (Square s = SQ_A1; s < SQ_NB; ++s) {
 		Piece pc = this->board[s];
 		if (pc == NO_PIECE || this->sideToMove != get_color(pc)) continue;
@@ -455,7 +455,7 @@ void Position::generate_moves(std::vector<Move>& moves) {
 		}
 	}
 
-	std::vector<Move> strict_moves;
+	svec<Move> strict_moves;
 	for (Move m : moves) {
 		if (this->checkStrictlyLegalMove(m)) {
 			strict_moves.push_back(m);
@@ -706,7 +706,7 @@ bool Position::is_checkmate(bool checkOpponent) {
 	if (!this->kingIsAttacked(c)) return false;
 
 	if (c == this->side_to_move()) {
-		std::vector<Move> moves;
+		svec<Move> moves;
 		this->generate_moves(moves); 
 		return moves.empty(); 
 	}

@@ -128,6 +128,41 @@ enum Direction : int {
 	NORTH_WEST = NORTH + WEST,
 };
 
+template<typename T>
+struct svec {
+	T e[MAX_MOVES];
+	int count = 0;
+
+	void clear() {
+		count = 0;
+	}
+	int size() const {
+		return count;
+	}
+	bool empty() const {
+		return count == 0;
+	}
+	void push_back(T m) {
+		e[count++] = m;
+	}
+	void pop_back() {
+		--count;
+	}
+	T& operator[](int index) { return e[index]; }
+	const T& operator[](int index) const { return e[index]; }
+	T *begin() { return e; }
+	T *end() { return e + count; }
+	const T *begin() const { return e; }
+	const T *end() const { return e + count; }
+
+	void swap(svec<T>& other) {
+		for (int i = 0; i < count || i < other.count; ++i) {
+			std::swap(e[i], other.e[i]);
+		}
+		std::swap(count, other.count);
+	}
+};
+
 #define ENABLE_BASE_OPERATORS_ON(T)                                \
 constexpr T operator+(T d1, T d2) { return T(int(d1) + int(d2)); } \
 constexpr T operator-(T d1, T d2) { return T(int(d1) - int(d2)); } \

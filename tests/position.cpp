@@ -3,7 +3,6 @@
 #include "position.h"
 #include <gtest/gtest.h>
 #include <string>
-#include <vector>
 
 TEST(Position, initialState) {
 	const std::string initialFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -71,7 +70,7 @@ void dfs(Position& p, int cur_d, int cnt[], StateListPtr& dq, const int MAXD) {
 	++cnt[cur_d];
 	if (cur_d + 1 >= MAXD) return;
 
-	std::vector<Move> moves;
+	svec<Move> moves;
 	p.generate_moves(moves);
 
 	for (Move m : moves) {

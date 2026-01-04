@@ -4,7 +4,6 @@
 #include "types.h"
 #include "transposition.h"
 #include <algorithm>
-#include <vector>
 
 struct ScoredMove {
 	Move move;
@@ -30,10 +29,10 @@ Value qsearch(Position& pos, Value alpha, Value beta, int &nodes) {
 	if (stand_pat >= beta) return beta;
 	if (alpha < stand_pat) alpha = stand_pat;
 
-	std::vector<Move> moves;
+	svec<Move> moves;
 	pos.generate_moves(moves);
 	
-	std::vector<ScoredMove> scored_moves;
+	svec<ScoredMove> scored_moves;
 	for (Move m : moves) {
 		if (pos.piece_on(to_sq(m)) == NO_PIECE && type_of(m) != PROMOTION && type_of(m) != ENPASSANT) continue;
 		int s = score_move(pos, m);
@@ -85,8 +84,7 @@ Value search(Position& pos, StateListPtr& dq, int depth, int ply, Value alpha, V
 	if (in_check) ++depth;
 	if (depth <= 0 && !in_check) return qsearch(pos, alpha, beta, nodes);
 
-	// 2. Sinh nước đi
-	std::vector<Move> moves;
+	svec<Move> moves;
 	pos.generate_moves(moves);
 	
 	// Kiểm tra chiếu hết hoặc hòa cờ
@@ -96,8 +94,7 @@ Value search(Position& pos, StateListPtr& dq, int depth, int ply, Value alpha, V
 	}
 
 	// 3. Sắp xếp nước đi (Move Ordering)
-	std::vector<ScoredMove> scored_moves;
-	scored_moves.reserve(moves.size());
+	svec<ScoredMove> scored_moves;
 	for (Move m : moves) {
 		int s = score_move(pos, m);
 		if (m == tt_move) s += 30000; // Ưu tiên số 1: Nước đi từ Hash Table
@@ -155,10 +152,10 @@ Move find_best_move(Position& pos, StateListPtr& dq, int max_depth) {
 		Value alpha = -VALUE_INFINITE;
 		Value beta = VALUE_INFINITE;
 
-		std::vector<Move> moves;
+		svec<Move> moves;
 		pos.generate_moves(moves);
 		
-		std::vector<ScoredMove> scored_moves;
+		svec<ScoredMove> scored_moves;
 		for (Move m : moves) {
 			int s = score_move(pos, m);
 			if (m == best_root_move) s += 30000;
