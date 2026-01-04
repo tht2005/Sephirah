@@ -1,12 +1,14 @@
 #include "bitboard.h"
 #include "option.h"
 #include "position.h"
+#include "thread.h"
 #include "transposition.h"
 #include "evaluation.h"
 #include "uci.h"
 
 int main(int argc, char **argv)
 {
+	Threads.init();
 	bitboard::init();
 	PSQT::init();
 	Option::init();

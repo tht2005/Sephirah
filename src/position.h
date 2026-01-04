@@ -27,6 +27,8 @@ public:
 	void print_board() const;
 
 	void set(std::string fenStr, StateInfo& st);
+	void set_state_pointer(StateInfo& st);
+
 	const std::string fen() const;
 
 	Bitboard pieces() const;
@@ -146,6 +148,10 @@ inline bool Position::square_empty(Square sq) const {
 
 inline bool Position::square_is_attacked(Color c, Square sq) const {
 	return this->generate_attack_bitboard(c) & square_bb(sq);
+}
+
+inline void Position::set_state_pointer(StateInfo& st) {
+	this->st = &st;
 }
 
 #endif

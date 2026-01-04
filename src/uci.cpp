@@ -2,9 +2,11 @@
 #include "option.h"
 #include "position.h"
 #include "sephirah.h"
+#include "thread.h"
 #include "types.h"
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -50,22 +52,34 @@ void position(std::istringstream& ss, Position& pos, StateListPtr& dq) {
 }
 
 void go(std::istringstream& ss, Position& pos, StateListPtr& dq) {
-	uint64_t btime, wtime;
-	std::string name, value;
+	SearchLimits limits;
+	memset(&limits, 0, sizeof(limits));
 	
-	while (ss >> name) {
-		if (name == "btime") {
-			ss >> btime;
-		} else if (name == "wtime") {
-			ss >> wtime;
-		} else {
-			ss >> value;
-		}
+	std::string token;
+	while (ss >> token) {
+		if (token == "wtime") ss >> limits.time[WHITE];
+		else if (token == "btime") ss >> limits.time[BLACK];
+		else if (token == "winc") ss >> limits.inc[WHITE];
+		else if (token == "binc") ss >> limits.inc[BLACK];
+		else if (token == "depth") ss >> limits.depth;
+		else if (token == "movetime") ss >> limits.move_time;
+		else if (token == "infinite") limits.infinite = true;
 	}
 
-	// Move m = find_best_move(pos, dq, 9);
-	Move m = find_best_move(pos, dq, 6);
-	std::cout << "bestmove " << move_to_str(m) << std::endl;
+	// Calculate time allocation
+	uint64_t t = limits.time[pos.side_to_move()];
+	uint64_t inc = limits.inc[pos.side_to_move()];
+
+	if (limits.move_time != 0) {
+		limits.allocated_time = limits.move_time;
+	} else if (t != 0) {
+		limits.allocated_time = t / 20 + inc / 2;
+		if (limits.allocated_time < 50) limits.allocated_time = 50;
+	} else {
+		limits.allocated_time = 1000000; // Infinite/Analysis
+	}
+
+	Threads.start_thinking(pos, dq, limits);
 }
 
 void setoption(std::istringstream& ss, std::string& token) {
@@ -120,7 +134,11 @@ int main(int argc, char **argv) {
 		else if (token == "ucinewgame") ucinewgame(pos, dq);
 		else if (token == "position") position(ss, pos, dq);
 		else if (token == "go") go(ss, pos, dq);
-		else if (token == "quit") break;
+		else if (token == "stop") Threads.stop();
+		else if (token == "quit") {
+			Threads.stop();
+			exit(0);
+		}
 		else  std::cout << "No such command '" << token << "'" << std::endl;
 	}
 	return 0;

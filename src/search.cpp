@@ -1,16 +1,18 @@
-#include "uci.h"
+#include "search.h"
+#include "thread.h"
 #include "evaluation.h"
 #include "position.h"
 #include "types.h"
 #include "transposition.h"
 #include <algorithm>
+#include <chrono>
+#include <cstdint>
 
 struct ScoredMove {
 	Move move;
 	int score;
 };
 
-// Hàm chấm điểm sơ bộ để sắp xếp nước đi (MVV-LVA)
 int score_move(const Position& pos, Move m) {
 	if (type_of(m) == PROMOTION) return 20000;
 	if (pos.piece_on(to_sq(m)) != NO_PIECE) {
@@ -21,9 +23,22 @@ int score_move(const Position& pos, Move m) {
 	return 0;
 }
 
-// Quiescence Search: Tìm kiếm yên tĩnh để tránh Horizon Effect
-Value qsearch(Position& pos, Value alpha, Value beta, int &nodes) {
-	++nodes;
+void check_time() {
+	if (Threads.stop_search) return;
+
+	auto now = std::chrono::steady_clock::now();
+	// Use start_time stored in SearchLimits
+	auto start = std::chrono::steady_clock::time_point(std::chrono::milliseconds(Threads.limits.start_time));
+	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
+
+	if (elapsed > Threads.limits.allocated_time) {
+		Threads.stop_search = true;
+	}
+}
+
+Value qsearch(Position& pos, Value alpha, Value beta, Thread &th) {
+	if ((++th.nodes & 2047) == 0) check_time();
+	if (Threads.stop_search) return VALUE_ZERO;
 
 	Value stand_pat = eval(pos);
 	if (stand_pat >= beta) return beta;
@@ -47,7 +62,7 @@ Value qsearch(Position& pos, Value alpha, Value beta, int &nodes) {
 	for (const auto& sm : scored_moves) {
 		Move m = sm.move;
 		pos.do_move(m, st);
-		Value val = -qsearch(pos, -beta, -alpha, nodes);
+		Value val = -qsearch(pos, -beta, -alpha, th);
 		pos.undo_move();
 
 		if (val >= beta) return beta;
@@ -57,7 +72,10 @@ Value qsearch(Position& pos, Value alpha, Value beta, int &nodes) {
 }
 
 // Hàm tìm kiếm chính (Alpha-Beta Pruning)
-Value search(Position& pos, StateListPtr& dq, int depth, int ply, Value alpha, Value beta, int& nodes) {
+Value search(Position& pos, StateListPtr& dq, int depth, int ply, Value alpha, Value beta, Thread &th) {
+	if ((++th.nodes & 2047) == 0) check_time();
+	if (Threads.stop_search) return VALUE_ZERO;
+
 	if (pos.is_draw()) return VALUE_DRAW;
 	alpha = std::max(alpha, Value(-VALUE_MATE + ply));
 	beta = std::min(beta, Value(VALUE_MATE - ply + 1));
@@ -82,7 +100,7 @@ Value search(Position& pos, StateListPtr& dq, int depth, int ply, Value alpha, V
 
 	bool in_check = pos.is_in_check();
 	if (in_check) ++depth;
-	if (depth <= 0 && !in_check) return qsearch(pos, alpha, beta, nodes);
+	if (depth <= 0 && !in_check) return qsearch(pos, alpha, beta, th);
 
 	svec<Move> moves;
 	pos.generate_moves(moves);
@@ -116,7 +134,7 @@ Value search(Position& pos, StateListPtr& dq, int depth, int ply, Value alpha, V
 		dq->emplace_back();
 		pos.do_move(m, dq->back());
 
-		Value val = -search(pos, dq, depth - 1, ply + 1, -beta, -alpha, nodes);
+		Value val = -search(pos, dq, depth - 1, ply + 1, -beta, -alpha, th);
 
 		pos.undo_move();
 		dq->pop_back();
@@ -141,13 +159,19 @@ Value search(Position& pos, StateListPtr& dq, int depth, int ply, Value alpha, V
 	return best_val;
 }
 
-// Hàm gốc gọi từ UCI: Thực hiện Iterative Deepening Search (IDS)
-Move find_best_move(Position& pos, StateListPtr& dq, int max_depth) {
+void search_root (Thread& th) {
+	Position& pos = th.pos;
+	StateListPtr& dq = th.history;
+
+	int max_depth = (Threads.limits.depth > 0) ? Threads.limits.depth : 64;
 	Move best_root_move = MOVE_NONE;
 
-	int nodes = 0;
-	
+	auto start_time = std::chrono::steady_clock::now();
+	Threads.limits.start_time = std::chrono::duration_cast<std::chrono::milliseconds>(start_time.time_since_epoch()).count();
+
 	for (int depth = 1; depth <= max_depth; ++depth) {
+		if (Threads.stop_search) break;
+
 		Value best_val = -VALUE_INFINITE;
 		Value alpha = -VALUE_INFINITE;
 		Value beta = VALUE_INFINITE;
@@ -167,11 +191,13 @@ Move find_best_move(Position& pos, StateListPtr& dq, int max_depth) {
 
 		Move current_best_move = MOVE_NONE;
 		for (const auto& sm : scored_moves) {
+			if (Threads.stop_search) break;
+
 			Move m = sm.move;
 			dq->emplace_back();
 			pos.do_move(m, dq->back());
 
-			Value val = -search(pos, dq, depth - 1, 1, -beta, -alpha, nodes);
+			Value val = -search(pos, dq, depth - 1, 1, -beta, -alpha, th);
 
 			pos.undo_move();
 			dq->pop_back();
@@ -183,8 +209,21 @@ Move find_best_move(Position& pos, StateListPtr& dq, int max_depth) {
 			}
 		}
 
-		best_root_move = current_best_move;
+		if (!Threads.stop_search) {
+			best_root_move = current_best_move;
+
+			auto now = std::chrono::steady_clock::now();
+			auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
+			std::cout << "info depth " << depth 
+					  << " score cp " << best_val 
+					  << " nodes " << th.nodes 
+					  << " time " << elapsed 
+					  << " pv " << move_to_str(best_root_move) << std::endl;
+		}
 	}
 
-	return best_root_move;
+	if (th.id == 0) {
+		std::cout << "bestmove " << move_to_str(best_root_move) << std::endl;
+	}
 }
+
