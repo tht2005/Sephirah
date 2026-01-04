@@ -63,7 +63,8 @@ void go(std::istringstream& ss, Position& pos, StateListPtr& dq) {
 		}
 	}
 
-	Move m = find_best_move(pos, dq, 9);
+	// Move m = find_best_move(pos, dq, 9);
+	Move m = find_best_move(pos, dq, 6);
 	std::cout << "bestmove " << move_to_str(m) << std::endl;
 }
 
