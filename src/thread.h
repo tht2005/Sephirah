@@ -39,9 +39,8 @@ public:
 	// Internal ID
 	size_t id;
 
-	// Each thread needs its own board and history to avoid data races
 	Position pos;
-	StateListPtr history; 
+	StateListPtr states; 
 
 	// Search statistics
 	uint64_t nodes;

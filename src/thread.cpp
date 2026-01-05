@@ -1,12 +1,11 @@
 #include "thread.h"
-#include "search.h" // We will update search.h next
+#include "search.h"
 #include <iostream>
 
 ThreadPool Threads;
 
 Thread::Thread(size_t id) : id(id), exit(false), searching(false) {
-	// Allocate history for this thread
-	history = std::unique_ptr<std::deque<StateInfo>>(new std::deque<StateInfo>);
+	states = std::unique_ptr<std::deque<StateInfo>>(new std::deque<StateInfo>);
 
 	stdThread = std::thread(&Thread::idle_loop, this);
 }
@@ -64,21 +63,18 @@ void ThreadPool::start_thinking(Position& pos, StateListPtr& states, const Searc
 	this->limits = limits;
 	stop_search = false;
 
-	// 1. Setup Main Thread (Thread 0)
 	Thread* mainThread = threads[0];
 
-	// COPY the position and history to the thread to prevent race conditions
-	// (Crucial for SMP later)
-	mainThread->pos = pos; // Bitwise copy of Position is fine
+	mainThread->pos = pos;
 
-	mainThread->history->clear();
+	mainThread->states->clear();
 	StateInfo* prevPtr = nullptr;
 	for (const auto& st : *states) {
-		mainThread->history->push_back(st);
-		mainThread->history->back().prev = prevPtr; // Relink pointers to new deque
-		prevPtr = &mainThread->history->back();
+		mainThread->states->push_back(st);
+		mainThread->states->back().prev = prevPtr;
+		prevPtr = &mainThread->states->back();
 	}
-	mainThread->pos.set_state_pointer(mainThread->history->back());
+	mainThread->pos.set_state_pointer(mainThread->states->back());
 
 	mainThread->start_searching();
 }

@@ -181,7 +181,7 @@ Value search(Position& pos, StateListPtr& dq, int depth, int ply, Value alpha, V
 
 void search_root (Thread& th) {
 	Position& pos = th.pos;
-	StateListPtr& dq = th.history;
+	StateListPtr& dq = th.states;
 
 	int max_depth = (Threads.limits.depth > 0) ? Threads.limits.depth : 64;
 	Move best_root_move = MOVE_NONE;
