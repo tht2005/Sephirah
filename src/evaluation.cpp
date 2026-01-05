@@ -32,6 +32,7 @@ constexpr Score BonusRookSemiOpenFile = S(15, 10);
 constexpr Score BonusKnightOutpost    = S(30, 10);
 constexpr Score BonusBishopOutpost    = S(20, 10);
 constexpr Score BonusRookOn7th        = S(20, 40);
+constexpr Score BonusKingSafety       = S(20, 5);
 
 // Mobility Weights (Simple count of available squares)
 constexpr Score MobilityKnight = S(4, 4);
@@ -41,6 +42,10 @@ constexpr Score MobilityQueen  = S(2, 4);
 
 // King Safety
 constexpr Score KingAttackWeight = S(2, 0); // Per attacker/attacked square
+
+// Penalty
+constexpr Score PenaltyKnightOnRim = S(20, 5);
+constexpr Score PenaltyEarlyQueen = S(15, 0);
 
 // --- Helper Functions ---
 
@@ -201,6 +206,12 @@ void eval_pieces(EvalInfo& ei, Color us) {
 		int mob = __builtin_popcountll(attacks & ei.mobilityArea[us]);
 		ei.score += (us == WHITE ? MobilityKnight * mob : -MobilityKnight * mob);
 
+		// penalize knights on rim
+		File f = get_file(s);
+		if (f == FILE_A || f == FILE_H) {
+			ei.score -= (us == WHITE ? PenaltyKnightOnRim : -PenaltyKnightOnRim);
+		}
+
 		// Outpost
 		if (hav_bit(outpostRanks, s)) {
 			// Supported by pawn
@@ -263,23 +274,48 @@ void eval_pieces(EvalInfo& ei, Color us) {
 	
 	// --- Queens ---
 	Bitboard queens = ei.pos.pieces(us, QUEEN);
+
+	// early queen penalty
+	Bitboard backRank = (us == WHITE ? RankMask[RANK_1] : RankMask[RANK_8]);
+	Bitboard minorsOnBackRank = ei.pos.pieces(us, KNIGHT) | ei.pos.pieces(us, BISHOP);
+	minorsOnBackRank &= backRank;
+	int undevelopedMinors = __builtin_popcountll(minorsOnBackRank);
+
 	while (queens) {
 		Square s = pop_lsb(queens);
 		Bitboard attacks = get_sliding_attacks(QUEEN, s, occupied);
 		int mob = __builtin_popcountll(attacks & ei.mobilityArea[us]);
 		ei.score += (us == WHITE ? MobilityQueen * mob : -MobilityQueen * mob);
+
+		// Apply Penalty if Queen has moved but minors are sleeping
+		// We assume if the queen is NOT on her starting square (D1/D8), she moved.
+		Square startSq = (us == WHITE ? SQ_D1 : SQ_D8);
+		if (s != startSq && undevelopedMinors > 1) {
+			 ei.score -= (us == WHITE ? PenaltyEarlyQueen * undevelopedMinors : -PenaltyEarlyQueen * undevelopedMinors);
+		}
 	}
 }
 
 void eval_king_safety(EvalInfo& ei, Color us) {
 	Color them = flip_color(us);
 	Square ksq = lsb(ei.pos.pieces(us, KING));
+
+	// If King is on files G or B (Kingside) or C (Queenside)
+	// AND it is on the back rank, give a bonus.
+	const File f = get_file(ksq);
+	const Rank r = get_rank(ksq);
+	Rank backRank = (us == WHITE ? RANK_1 : RANK_8);
+
+	if (r == backRank) {
+		// G-file (Kingside), B/C-file (Queenside)
+		if (f == FILE_G || f == FILE_B || f == FILE_C) {
+			ei.score += (us == WHITE ? BonusKingSafety : -BonusKingSafety);
+		}
+	}
 	
 	// 1. Pawn Shield (Mainly MG)
 	// Check pawns in front of the king
 	Bitboard shieldMask = 0;
-	Rank r = get_rank(ksq);
-	File f = get_file(ksq);
 	
 	// Define shield squares based on King rank (usually 1 or 2 for white)
 	if (us == WHITE ? r <= RANK_2 : r >= RANK_7) {
