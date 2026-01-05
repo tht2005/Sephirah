@@ -1,5 +1,6 @@
 #include "thread.h"
 #include "search.h"
+#include <cstring>
 #include <iostream>
 
 ThreadPool Threads;
@@ -46,6 +47,11 @@ void Thread::wait_for_search_finished() {
 	while (searching) {
 		std::this_thread::yield();
 	}
+}
+
+void Thread::clear_heuristics() {
+	memset(killers, 0, sizeof(killers));
+	memset(history, 0, sizeof(history));
 }
 
 void ThreadPool::init() {

@@ -13,14 +13,45 @@ struct ScoredMove {
 	int score;
 };
 
-int score_move(const Position& pos, Move m) {
-	if (type_of(m) == PROMOTION) return 20000;
-	if (pos.piece_on(to_sq(m)) != NO_PIECE) {
+int score_move(const Position& pos, Move m, const Thread& th, int ply) {
+	// 1. PV Move (Handled by checking against ttMove in the loop, usually gave max score)
+	
+	// 2. Captures (MVV-LVA)
+	if (pos.piece_on(to_sq(m)) != NO_PIECE || type_of(m) == PROMOTION || type_of(m) == ENPASSANT) {
+		int score = 0;
+		if (type_of(m) == PROMOTION) score += 20000;
+		
 		Piece attacker = pos.piece_on(from_sq(m));
-		Piece victim = pos.piece_on(to_sq(m));
-		return 10000 + 10 * get_piece_type(victim) - get_piece_type(attacker);
+		Piece victim = (type_of(m) == ENPASSANT) ? make_piece(flip_color(pos.side_to_move()), PAWN) 
+												 : pos.piece_on(to_sq(m));
+		
+		if (victim != NO_PIECE) {
+			score += 10000 + 10 * get_piece_type(victim) - get_piece_type(attacker);
+		}
+		return score;
 	}
-	return 0;
+
+	// 3. Killer Moves (Quiet moves that caused a cutoff recently)
+	if (ply < MAX_PLY) {
+		if (m == th.killers[ply][0]) return 9000;
+		if (m == th.killers[ply][1]) return 8000;
+	}
+
+	// 4. History Heuristic (Quiet moves that are generally good)
+	// Cap value to avoid overflow if needed, or just return raw history
+	return th.history[pos.piece_on(from_sq(m))][to_sq(m)];
+}
+
+// Update History logic (call this when a quiet move fails high)
+void update_history(Thread& th, Move m, int depth) {
+	Piece p = th.pos.piece_on(from_sq(m));
+	Square to = to_sq(m);
+	// Bonus proportional to depth squared (deep cutoffs are more valuable)
+	int bonus = depth * depth;
+	
+	// Clamp to prevent overflow
+	if (th.history[p][to] < 20000) 
+		th.history[p][to] += bonus;
 }
 
 void check_time() {
@@ -50,7 +81,7 @@ Value qsearch(Position& pos, Value alpha, Value beta, Thread &th) {
 	svec<ScoredMove> scored_moves;
 	for (Move m : moves) {
 		if (pos.piece_on(to_sq(m)) == NO_PIECE && type_of(m) != PROMOTION && type_of(m) != ENPASSANT) continue;
-		int s = score_move(pos, m);
+		int s = score_move(pos, m, th, MAX_PLY);
 		scored_moves.push_back({m, s});
 	}
 
@@ -71,7 +102,6 @@ Value qsearch(Position& pos, Value alpha, Value beta, Thread &th) {
 	return alpha;
 }
 
-// Hàm tìm kiếm chính (Alpha-Beta Pruning)
 Value search(Position& pos, StateListPtr& dq, int depth, int ply, Value alpha, Value beta, Thread &th) {
 	if ((++th.nodes & 2047) == 0) check_time();
 	if (Threads.stop_search) return VALUE_ZERO;
@@ -84,13 +114,10 @@ Value search(Position& pos, StateListPtr& dq, int depth, int ply, Value alpha, V
 	Key key = pos.key();
 	TTEntry tte = ttable.get(key);
 	Move tt_move = MOVE_NONE;
-
 	if (tte.key == uint64_t(key)) {
 		tt_move = Move(tte.move);
-		
 		if (tte.depth >= depth) {
 			Value ttValue = TranspositionTable::value_from_tt(Value(tte.value), ply);
-			
 			Bound b = get_bound_type(tte.genbound);
 			if (b == BOUND_EXACT) return ttValue;
 			if (b == BOUND_LOWER && ttValue >= beta) return ttValue;
@@ -100,11 +127,11 @@ Value search(Position& pos, StateListPtr& dq, int depth, int ply, Value alpha, V
 
 	bool in_check = pos.is_in_check();
 	if (in_check) ++depth;
+
 	if (depth <= 0 && !in_check) return qsearch(pos, alpha, beta, th);
 
 	if (!in_check && depth >= 3 && pos.has_non_pawn_material(pos.side_to_move())) {
-		int R = 2;
-		if (depth > 6) R = 3;
+		int R = (depth > 6) ? 3 : 2;
 
 		dq->emplace_back();
 		pos.do_null_move(dq->back());
@@ -115,49 +142,84 @@ Value search(Position& pos, StateListPtr& dq, int depth, int ply, Value alpha, V
 		dq->pop_back();
 
 		if (Threads.stop_search) return VALUE_ZERO;
-
 		if (nullValue >= beta) {
 			if (nullValue >= VALUE_MATE_IN_MAX_PLY) return beta;
 			return nullValue;
 		}
 	}
 
+	if (depth < 4 && !in_check && alpha < VALUE_MATE_IN_MAX_PLY && beta > VALUE_MATED_IN_MAX_PLY) {
+		int static_eval = eval(pos);
+		int margin = 128 * depth;
+		if (static_eval + margin < alpha) {
+			return qsearch(pos, alpha, beta, th);
+		}
+	}
+
 	svec<Move> moves;
 	pos.generate_moves(moves);
-	
-	// Kiểm tra chiếu hết hoặc hòa cờ
 	if (moves.empty()) {
 		if (in_check) return Value(-VALUE_MATE + ply);
 		return VALUE_DRAW;
 	}
 
-	// 3. Sắp xếp nước đi (Move Ordering)
 	svec<ScoredMove> scored_moves;
 	for (Move m : moves) {
-		int s = score_move(pos, m);
-		if (m == tt_move) s += 30000; // Ưu tiên số 1: Nước đi từ Hash Table
+		int s = score_move(pos, m, th, ply);
+		if (m == tt_move) s += 40000;
 		scored_moves.push_back({m, s});
 	}
-
-	// Sắp xếp giảm dần theo điểm
 	std::sort(scored_moves.begin(), scored_moves.end(), [](const ScoredMove& a, const ScoredMove& b) {
 		return a.score > b.score;
 	});
 
-	// 4. Duyệt Alpha-Beta
 	Value best_val = -VALUE_INFINITE;
 	Move best_move = MOVE_NONE;
-	Bound bound = BOUND_UPPER; // Mặc định là Upper Bound (chưa tìm thấy nước nào tốt hơn Alpha)
+	Bound bound = BOUND_UPPER;
+
+	int moves_searched = 0;
 
 	for (const auto& sm : scored_moves) {
 		Move m = sm.move;
+		bool is_capture = (pos.piece_on(to_sq(m)) != NO_PIECE) || (type_of(m) == PROMOTION);
+
 		dq->emplace_back();
 		pos.do_move(m, dq->back());
 
-		Value val = -search(pos, dq, depth - 1, ply + 1, -beta, -alpha, th);
+		Value val;
+		if (moves_searched == 0) {
+			val = -search(pos, dq, depth - 1, ply + 1, -beta, -alpha, th);
+		} else {
+			// Late Moves
+			// Calculation Reduction (LMR)
+			int reduction = 0;
+			// Conditions: Depth is high, move is ordered late, not a capture/check
+			if (depth >= 3 && moves_searched > 3 && !is_capture && !in_check) {
+				reduction = 1;
+				if (moves_searched > 8) reduction = 2; // Reduce more for very late moves
+				if (depth > 8) reduction += 1; // Reduce more at high depth
+			}
+
+			// Search with Zero Window (Null Window) + Reduction
+			// We expect this move to fail low (val <= alpha)
+			val = -search(pos, dq, depth - 1 - reduction, ply + 1, Value(-alpha - 1), -alpha, th);
+
+			// Re-search 1: If LMR failed (move was better than expected), search again unreduced (but still Zero Window)
+			if (val > alpha && reduction > 0) {
+				val = -search(pos, dq, depth - 1, ply + 1, Value(-alpha - 1), -alpha, th);
+			}
+
+			// Re-search 2: If Zero Window failed (move improves alpha), search again with Full Window
+			if (val > alpha && val < beta) {
+				val = -search(pos, dq, depth - 1, ply + 1, -beta, -alpha, th);
+			}
+		}
 
 		pos.undo_move();
 		dq->pop_back();
+
+		if (Threads.stop_search) return VALUE_ZERO;
+		++moves_searched;
 
 		if (val > best_val) {
 			best_val = val;
@@ -167,8 +229,21 @@ Value search(Position& pos, StateListPtr& dq, int depth, int ply, Value alpha, V
 				bound = BOUND_EXACT; // Tìm thấy nước tốt, cập nhật thành Exact Bound
 			}
 		}
+
 		if (alpha >= beta) {
-			bound = BOUND_LOWER; // Cắt tỉa Beta -> Lower Bound
+			// Beta Cutoff (Fail High)
+			bound = BOUND_LOWER;
+			
+			// --- UPDATE KILLER & HISTORY HEURISTICS ---
+			if (!is_capture && ply < MAX_PLY) {
+				// Store Killer
+				if (th.killers[ply][0] != m) {
+					th.killers[ply][1] = th.killers[ply][0];
+					th.killers[ply][0] = m;
+				}
+				// Update History
+				update_history(th, m, depth);
+			}
 			break; 
 		}
 	}
@@ -182,6 +257,8 @@ Value search(Position& pos, StateListPtr& dq, int depth, int ply, Value alpha, V
 void search_root (Thread& th) {
 	Position& pos = th.pos;
 	StateListPtr& dq = th.states;
+
+	th.clear_heuristics();
 
 	int max_depth = (Threads.limits.depth > 0) ? Threads.limits.depth : 64;
 	Move best_root_move = MOVE_NONE;
@@ -201,7 +278,7 @@ void search_root (Thread& th) {
 		
 		svec<ScoredMove> scored_moves;
 		for (Move m : moves) {
-			int s = score_move(pos, m);
+			int s = score_move(pos, m, th, MAX_PLY);
 			if (m == best_root_move) s += 30000;
 			scored_moves.push_back({m, s});
 		}

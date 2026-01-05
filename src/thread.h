@@ -36,6 +36,8 @@ public:
 	// Wait for this specific thread to finish
 	void wait_for_search_finished();
 
+	void clear_heuristics();
+
 	// Internal ID
 	size_t id;
 
@@ -44,6 +46,10 @@ public:
 
 	// Search statistics
 	uint64_t nodes;
+
+	// Killer moves: [Ply][Slot] (2 slots per ply is standard)
+	Move killers[MAX_PLY][2];
+	int history[PIECE_NB][SQ_NB];
 
 	// Threading primitives
 	std::thread stdThread;
