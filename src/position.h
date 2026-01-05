@@ -48,6 +48,9 @@ public:
 	Square castling_rook_square(CastlingRights cr) const;
 	Square castling_rook_to_square(CastlingRights cr) const;
 
+	void do_null_move(StateInfo& newSt);
+	void undo_null_move();
+
 	void do_move(Move m, StateInfo& newSt);
 	void undo_move();
 	void generate_moves(svec<Move>& moves);
@@ -60,6 +63,8 @@ public:
 	Move string_to_move(std::string str);
 
 	bool square_is_attacked(Color c, Square sq) const;
+
+	bool has_non_pawn_material(Color c) const;
 	
 private:
 	void put_piece(Piece pc, Square sq);
@@ -152,6 +157,10 @@ inline bool Position::square_is_attacked(Color c, Square sq) const {
 
 inline void Position::set_state_pointer(StateInfo& st) {
 	this->st = &st;
+}
+
+inline bool Position::has_non_pawn_material(Color c) const {
+	return (this->pieces(c) ^ this->pieces(c, PAWN) ^ this->pieces(c, KING));
 }
 
 #endif

@@ -102,6 +102,26 @@ Value search(Position& pos, StateListPtr& dq, int depth, int ply, Value alpha, V
 	if (in_check) ++depth;
 	if (depth <= 0 && !in_check) return qsearch(pos, alpha, beta, th);
 
+	if (!in_check && depth >= 3 && pos.has_non_pawn_material(pos.side_to_move())) {
+		int R = 2;
+		if (depth > 6) R = 3;
+
+		dq->emplace_back();
+		pos.do_null_move(dq->back());
+
+		Value nullValue = -search(pos, dq, depth - 1 - R, ply + 1, -beta, Value(-beta + 1), th);
+
+		pos.undo_null_move();
+		dq->pop_back();
+
+		if (Threads.stop_search) return VALUE_ZERO;
+
+		if (nullValue >= beta) {
+			if (nullValue >= VALUE_MATE_IN_MAX_PLY) return beta;
+			return nullValue;
+		}
+	}
+
 	svec<Move> moves;
 	pos.generate_moves(moves);
 	

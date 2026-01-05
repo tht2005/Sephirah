@@ -865,3 +865,32 @@ bool Position::can_castle(CastlingRights cr) const {
 	return true;
 }
 
+void Position::do_null_move(StateInfo& newSt) {
+	// Copy state info
+	newSt.key = this->st->key;
+	newSt.castlingRights = this->st->castlingRights;
+	newSt.rule50 = this->st->rule50;
+	newSt.capturedPiece = NO_PIECE;
+	newSt.lastmove = MOVE_NULL;
+	newSt.epSquare = SQ_NONE;
+	newSt.prev = this->st;
+
+	if (this->st->epSquare != SQ_NONE) {
+		newSt.key ^= Zobrist::enpassant[get_file(this->st->epSquare)];
+	}
+
+	newSt.key ^= Zobrist::side;
+
+	newSt.rule50++; 
+
+	this->sideToMove = flip_color(this->sideToMove);
+	this->st = &newSt;
+	++this->ply;
+}
+
+void Position::undo_null_move() {
+	this->sideToMove = flip_color(this->sideToMove);
+	this->st = this->st->prev;
+	--this->ply;
+}
+
