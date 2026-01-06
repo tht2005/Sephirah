@@ -44,10 +44,10 @@ int score_move(const Position& pos, Move m, const Thread& th, int ply) {
 }
 
 // Update History logic (call this when a quiet move fails high)
-void update_history(Thread& th, Move m, int depth) {
-	Piece p = th.pos.piece_on(from_sq(m));
+void update_history(const Position& pos, Thread& th, Move m, int depth) {
+	Piece p = pos.piece_on(from_sq(m));
+
 	Square to = to_sq(m);
-	// Bonus proportional to depth squared (deep cutoffs are more valuable)
 	int bonus = depth * depth;
 	
 	// Clamp to prevent overflow
@@ -247,7 +247,7 @@ Value search(Position& pos, StateListPtr& dq, int depth, int ply, Value alpha, V
 					th.killers[ply][0] = m;
 				}
 				// Update History
-				update_history(th, m, depth);
+				update_history(pos, th, m, depth);
 			}
 			break; 
 		}
