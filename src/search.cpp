@@ -6,6 +6,7 @@
 #include "transposition.h"
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 
 struct ScoredMove {
@@ -80,7 +81,11 @@ Value qsearch(Position& pos, Value alpha, Value beta, Thread &th) {
 	
 	svec<ScoredMove> scored_moves;
 	for (Move m : moves) {
-		if (pos.piece_on(to_sq(m)) == NO_PIECE && type_of(m) != PROMOTION && type_of(m) != ENPASSANT) continue;
+		bool is_captured = (pos.piece_on(to_sq(m)) != NO_PIECE) || (type_of(m) == ENPASSANT);
+		bool is_promotion = (type_of(m) == PROMOTION);
+
+		if (!is_captured && !is_promotion) continue;
+
 		int s = score_move(pos, m, th, MAX_PLY);
 		scored_moves.push_back({m, s});
 	}
