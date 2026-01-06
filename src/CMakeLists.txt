@@ -10,3 +10,5 @@ add_executable(sephirah main.cpp)
 
 find_package(Threads REQUIRED)
 target_link_libraries(sephirah PRIVATE sephirah_lib Threads::Threads)
+
+install(TARGETS sephirah RUNTIME DESTINATION bin)

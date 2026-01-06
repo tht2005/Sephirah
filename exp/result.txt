@@ -1,0 +1,34 @@
+Score of Sephirah vs SF1320: 7 - 2 - 1  [0.750] 10
+...      Sephirah playing White: 4 - 0 - 1  [0.900] 5
+...      Sephirah playing Black: 3 - 2 - 0  [0.600] 5
+...      White vs Black: 6 - 3 - 1  [0.650] 10
+Elo difference: 190.8 +/- 658.3, LOS: 95.2 %, DrawRatio: 10.0 %
+SPRT: llr 0 (0.0%), lbound -inf, ubound inf
+
+Score of Sephirah vs SF1500: 6 - 3 - 1  [0.650] 10
+...      Sephirah playing White: 3 - 2 - 0  [0.600] 5
+...      Sephirah playing Black: 3 - 1 - 1  [0.700] 5
+...      White vs Black: 4 - 5 - 1  [0.450] 10
+Elo difference: 107.5 +/- 268.4, LOS: 84.1 %, DrawRatio: 10.0 %
+SPRT: llr 0 (0.0%), lbound -inf, ubound inf
+
+Score of Sephirah vs SF1600: 6 - 4 - 0  [0.600] 10
+...      Sephirah playing White: 5 - 0 - 0  [1.000] 5
+...      Sephirah playing Black: 1 - 4 - 0  [0.200] 5
+...      White vs Black: 9 - 1 - 0  [0.900] 10
+Elo difference: 70.4 +/- 268.9, LOS: 73.6 %, DrawRatio: 0.0 %
+SPRT: llr 0 (0.0%), lbound -inf, ubound inf
+
+Score of Sephirah vs SF1700: 4 - 5 - 1  [0.450] 10
+...      Sephirah playing White: 4 - 0 - 1  [0.900] 5
+...      Sephirah playing Black: 0 - 5 - 0  [0.000] 5
+...      White vs Black: 9 - 0 - 1  [0.950] 10
+Elo difference: -34.9 +/- 237.0, LOS: 36.9 %, DrawRatio: 10.0 %
+SPRT: llr 0 (0.0%), lbound -inf, ubound inf
+
+Score of Sephirah vs SF2000: 1 - 8 - 1  [0.150] 10
+...      Sephirah playing White: 1 - 4 - 0  [0.200] 5
+...      Sephirah playing Black: 0 - 4 - 1  [0.100] 5
+...      White vs Black: 5 - 4 - 1  [0.550] 10
+Elo difference: -301.3 +/- nan, LOS: 1.0 %, DrawRatio: 10.0 %
+SPRT: llr 0 (0.0%), lbound -inf, ubound inf
