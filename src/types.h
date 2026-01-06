@@ -237,12 +237,12 @@ constexpr Score make_score(int mg, int eg) {
 	return Score((int)((unsigned int)eg << 16) + mg);
 }
 
-inline Value eg_value(Score s) {
+constexpr Value eg_value(Score s) {
 	union { uint16_t u; int16_t s; } eg = { uint16_t(unsigned(s + 0x8000) >> 16) };
 	return Value(eg.s);
 }
 
-inline Value mg_value(Score s) {
+constexpr Value mg_value(Score s) {
 	union { uint16_t u; int16_t s; } mg = { uint16_t(unsigned(s)) };
 	return Value(mg.s);
 }
