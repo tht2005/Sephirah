@@ -3,6 +3,7 @@
 #include "position.h"
 #include "sephirah.h"
 #include "thread.h"
+#include "transposition.h"
 #include "types.h"
 #include <algorithm>
 #include <cctype>
@@ -29,6 +30,10 @@ void ucinewgame(Position& pos, StateListPtr& dq) {
 	dq->clear();
 	dq->emplace_back();
 	pos.set(startpos, dq->back());
+
+	ttable.clear();
+
+	Threads.main()->clear_heuristics();
 }
 
 void position(std::istringstream& ss, Position& pos, StateListPtr& dq) {

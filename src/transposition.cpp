@@ -1,6 +1,7 @@
 #include "transposition.h"
 #include "option.h"
 #include "types.h"
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <vector>
@@ -80,5 +81,9 @@ Value TranspositionTable::value_from_tt(Value v, int ply) {
 	if (v >= VALUE_MATE_IN_MAX_PLY) return Value(v - ply);
 	if (v <= VALUE_MATED_IN_MAX_PLY) return Value(v + ply);
 	return v;
+}
+
+void TranspositionTable::clear() {
+	std::fill(this->entries.begin(), this->entries.end(), TTEntry());
 }
 

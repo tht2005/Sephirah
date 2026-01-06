@@ -27,6 +27,7 @@ public:
 	TTEntry get(Key k);
 	void set(Key k, const TTEntry& entry);
 	size_t size();
+	void clear();
 
 	// Helpers for Mate Score normalization
 	static Value value_to_tt(Value v, int ply);
