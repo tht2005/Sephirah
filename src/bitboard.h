@@ -44,9 +44,15 @@ inline int __builtin_ctzll(unsigned long long mask) {
 #define dec_bit(b, i) do { (b) &= ~(1ULL << (i)); } while (0)
 #define hav_bit(b, i) ((b) & (1ULL << (i)))
 
-// XÓA "constexpr" Ở ĐÂY VÌ MSVC KHÔNG HỖ TRỢ TRONG TRƯỜNG HỢP NÀY
 inline Square lsb(Bitboard b) {
-	return Square(__builtin_ctzll(b));
+#ifdef _MSC_VER
+    unsigned long index;
+    if (_BitScanForward64(&index, b))
+        return Square(index);
+    return SQ_NONE; // Or handle 0 case
+#else
+    return Square(__builtin_ctzll(b));
+#endif
 }
 
 inline Square pop_lsb(Bitboard& b) {
