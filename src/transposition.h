@@ -9,8 +9,8 @@
 struct TTEntry {
 	uint64_t key;
 	uint16_t move;
-	uint16_t eval;
-	uint16_t value;
+	int16_t eval;
+	int16_t value;
 	uint8_t genbound; // 5 bit for generation, 1 bit for pv node, 2 bit for bound type
 	uint8_t depth;
 

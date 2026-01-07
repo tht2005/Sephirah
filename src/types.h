@@ -144,8 +144,10 @@ struct svec {
 	}
 	void push_back(T m) {
 		e[count++] = m;
+		assert(count <= MAX_MOVES);
 	}
 	void pop_back() {
+		assert(count > 0);
 		--count;
 	}
 	T& operator[](int index) { return e[index]; }
@@ -155,12 +157,12 @@ struct svec {
 	const T *begin() const { return e; }
 	const T *end() const { return e + count; }
 
-	void swap(svec<T>& other) {
-		for (int i = 0; i < count || i < other.count; ++i) {
-			std::swap(e[i], other.e[i]);
-		}
-		std::swap(count, other.count);
-	}
+	// void swap(svec<T>& other) {
+	// 	for (int i = 0; i < count || i < other.count; ++i) {
+	// 		std::swap(e[i], other.e[i]);
+	// 	}
+	// 	std::swap(count, other.count);
+	// }
 };
 
 #define ENABLE_BASE_OPERATORS_ON(T)                                \
